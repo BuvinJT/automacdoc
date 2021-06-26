@@ -1,12 +1,17 @@
 # ----------------
+import ast
 import inspect
 import importlib
 import os
 import sys
 import platform
 import glob
+import traceback
 # ----------------
+ 
+DIR_SCAN_MODE, IMPORT_SCAN_MODE = range(2)
 
+MAGIC_DOCNAME_COMMENT='# DOCS >>'
 
 def rm_docstring_from_source(source):
     """
@@ -57,7 +62,7 @@ def create_fun(name: str, obj, ignore_prefix_function: str):
         return None
 
     fun = {}
-    fun["name"] = name
+    fun["name"] = name if name else 'undefined'
     fun["obj"] = obj
     fun["module"] = inspect.getmodule(obj).__name__
     fun["path"] = inspect.getmodule(obj).__file__
@@ -95,14 +100,15 @@ def create_class(name: str, obj, ignore_prefix_function: str):
     clas["doc"] = inspect.getdoc(obj) or ""
     clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
     clas["args"] = inspect.signature(obj)
-    clas["functions"] = [
-        create_fun(n, o, ignore_prefix_function)
-        for n, o in inspect.getmembers(obj, inspect.isfunction)
-    ]
-    clas["methods"] = [
-        create_fun(n, o, ignore_prefix_function)
-        for n, o in inspect.getmembers(obj, inspect.ismethod)
-    ]
+    clas["functions"]=[]
+    clas["methods"] = []    
+    # avoid the collection of create_fun failures, i.e. None returns 
+    for n, o in inspect.getmembers(obj, inspect.isfunction):
+        f = create_fun(n, o, ignore_prefix_function)
+        if f: clas["functions"].append(f)
+    for n, o in inspect.getmembers(obj, inspect.ismethod):
+        f = create_fun(n, o, ignore_prefix_function)
+        if f: clas["methods"].append(f)
     return clas
 
 
@@ -112,6 +118,9 @@ class_name_md = (
 method_name_md = (
     "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
 )  # class, name, args
+all_funcs_md = (
+    "## **Functions** {{ #Functions data-toc-label=Functions }}\n\n".format
+)  # name
 function_name_md = (
     "### **{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, args
@@ -121,6 +130,7 @@ source_md = (
     format
 )  # source
 
+def write_functions_header(md_file): md_file.writelines(all_funcs_md())
 
 def write_function(md_file, fun):
     """
@@ -137,7 +147,6 @@ def write_function(md_file, fun):
     md_file.writelines(function_name_md(fun["name"], fun["args"]))
     md_file.writelines(doc_md(fun["doc"]))
     md_file.writelines(source_md(fun["source"]))
-
 
 def write_method(md_file, method, clas):
     """
@@ -303,49 +312,264 @@ This website contains the documentation for the wonderful project {0}
     indexmd_file.writelines(content)
     indexmd_file.close()
 
+def __get_module_path( module_name: str ):
+    """
+    Attempt to import the module/package simply by name.
+    If that import fails, check if this package is found on a path 
+    relative to the working directory, otherwise raise an exception.
+    """
+    try:  
+        exec( "import %s" % (module_name,) )
+        return eval( "inspect.getfile( %s )" % (module_name,) )
+    except Exception as error:
+        path = os.path.join(os.path.abspath(module_name),'__init__.py')
+        if os.path.isfile(path): return path
+        print("ERROR: cannot resolve path for module %s" % (module_name,) )
+        raise error    
+     
+def __get_import_module( module_name: str ):
+    """
+    Returns importlib module
+    Attempt to import the module/package simply by name.
+    If that import fails, try to import the package by relative path, 
+    otherwise raise an exception.
+    """
+    try:    return __get_import_by_name( module_name, is_silent=True )
+    except: return __get_import_by_path( __get_module_path( module_name ) )
+   
+def __get_import_by_name( name: str, is_silent=False ):        
+    try: return importlib.import_module( name )
+    except Exception as error:
+        if not is_silent:
+            print("ERROR: cannot acquire module: %s" % (name,) )
+        raise error
 
-def write_doc(src: str, mainfolder: str):
+def __get_import_by_path( path: str, is_silent=False ):
+    package_name = os.path.splitext(os.path.basename(path))[0]
+    if package_name=='__init__':
+        path = os.path.dirname(path)
+        package_name = os.path.basename(path)
+        path = os.path.dirname(path)        
+    sys.path.insert(0, path)
+    try: return importlib.import_module( package_name )
+    except Exception as error:
+        if not is_silent:
+            print("ERROR: cannot acquire module: %s from %s" % 
+                  (package_name,path) )
+        raise error
+    finally: sys.path.remove(path)
+    
+def __get_source_path( module, member_name ):
+    for n, o in inspect.getmembers( module ):
+        if n==member_name: return inspect.getmodule(o).__file__
+    
+def __get_import_class_names( module ): 
+    return [n for n,_ in inspect.getmembers(module, inspect.isclass)]
+
+def __get_import_func_names( module ): 
+    return [n for n,_ in inspect.getmembers(module, inspect.isfunction)]
+
+def __get_import_class( module, classname: str, ignore_prefix_function: str ): 
+    for n, o in inspect.getmembers(module, inspect.isclass):
+        if n==classname: return create_class(n, o, ignore_prefix_function)
+
+def __get_import_func( module, funcname: str, ignore_prefix_function: str ): 
+    for n, o in inspect.getmembers(module, inspect.isfunction):
+        if n==funcname: return create_fun(n, o, ignore_prefix_function)
+       
+def __write_class( md_file, module_path: str, class_name: str ):
+    try:
+        module = __get_import_by_path( module_path )
+        clas = __get_import_class( module, class_name, ignore_prefix_function='_' )        
+        if clas:
+            write_class(md_file, clas)
+            md_file.writelines("""\n______\n\n""")
+    except: 
+        print("WARNING: failed to write definition of class %s from %s" % 
+              (class_name, module_path))
+        traceback.print_exc()
+       
+def __write_func( md_file, module_path: str, class_name: str ):
+    try:
+        module = __get_import_by_path( module_path )
+        func = __get_import_func( module, class_name, ignore_prefix_function='_' )        
+        if func:
+            write_function(md_file, func)
+            md_file.writelines("""\n______\n\n""")
+    except: 
+        print("WARNING: failed to write definition of class %s from %s" % 
+              (class_name, module_path))
+        traceback.print_exc()
+        
+def __parseSnippetIdentifiers( module_name, magic_init_path, source_lines ):   
+
+    def __get_all_names( module ):     
+        class_names=[ n for n,_ in inspect.getmembers(module, inspect.isclass) ] 
+        func_names=[ n for n,_ in inspect.getmembers(module, inspect.isfunction) ]
+        var_names=[]
+        return class_names, func_names, var_names
+    
+    def __get_identifier_names( ast_root_node ):        
+        parsed_imports=[]    
+        for node in ast.walk( ast_root_node ):
+            if isinstance( node, (ast.Import, ast.ImportFrom) ):               
+                #module =( node.module if isinstance( node, ast.ImportFrom )
+                #          else None )                             
+                names = [n.asname if n.asname else n.name  
+                         for n in node.names]
+                parsed_imports.extend( names )
+            # CONSTANTS assigned directly in that module perhaps...    
+            #if isinstance( node, ast.Assign ):
+            #    for target in node.targets:
+            #        parsed_imports.append( target.name )
+                                        
+        return parsed_imports               
+
+    # get all the identifiers, categorized, but not filtered
+    module = __get_import_module( module_name )      
+    class_names, func_names, var_names = __get_all_names( module )    
+    #print( "all_names", class_names, func_names, var_names )
+    
+    # get the identifiers which are only found in the code snippet 
+    package_path = os.path.dirname( magic_init_path )
+    sys.path.insert(0, package_path)
+    try: ast_root_node = ast.parse( '\n'.join(source_lines) )    
+    except Exception as error:
+        print("[-]Warning: failed to parse source snippet from %s" % 
+               (magic_init_path,), error)
+        return None
+    #finally: sys.path.remove(package_path)
+    snippet_identifier_names = __get_identifier_names( ast_root_node )    
+    #print( "snippet_identifier_names", snippet_identifier_names )
+    
+    # filter the complete lists against the subset of names from the snippet 
+    class_names = [n for n in class_names if n in snippet_identifier_names]
+    func_names  = [n for n in func_names  if n in snippet_identifier_names]
+    var_names   = [n for n in var_names   if n in snippet_identifier_names]
+
+    # get the source paths for the filtered down items being returned
+    class_info={}
+    for n in class_names: class_info[n] = __get_source_path( module, n )
+    func_info={}
+    for n in func_names:  func_info[n]  = __get_source_path( module, n )
+    var_info={}
+    for n in var_names:   var_info[n]   = __get_source_path( module, n )
+                            
+    return class_info, func_info, var_info
+
+def write_doc(src: str, mainfolder: str, mode=DIR_SCAN_MODE):
+    print( "write_doc", src, mainfolder, mode )
     # variables
     project_icon = "code"  # https://material.io/tools/icons/?style=baseline
-
     # setting the paths variable
     project_name = mainfolder.split("/")[-1]
-    code_path = os.path.abspath(src)
     doc_path = os.path.join(os.path.abspath(mainfolder), "docs")
-    package_name = code_path.split("/")[-1]
-    root_path = os.path.dirname(code_path)
-
-    #Since windows and Linux platforms utilizes different slash in their file structure
-    system_slash_style = {"Windows": "\\", "Linux": "/"}
-
-    # load the architecture of the module
-    ign_pref_file = "__"
-    full_list_glob = glob.glob(code_path + "/**", recursive=True)
-    list_glob = [
-        p
-        for p in full_list_glob
-        if "/" + ign_pref_file not in p and os.path.isfile(p) and p[-3:] == ".py" \
-            and "__init__" not in p
-    ]
-
-    # write every markdown files based on the architecture
+    if not os.path.isdir(doc_path): os.makedirs(doc_path)
+    # init table of contents
     toc = ""
-    for mod in list_glob:
-        module_name = mod[len(root_path) + 1 : -3]\
-            .replace(system_slash_style.get(platform.system(), "/"), ".")
-        mdfile_path = os.path.join(
-            doc_path, mod[len(code_path) + 1:-3] + ".md"
-        )
-        mdfile_name = mdfile_path[len(doc_path) + 1:]
-        try:
-            write_module(root_path, module_name, mdfile_path)
-            toc += get_toc_lines_from_file_path(mdfile_name)
-        except Exception as error:
-            print("[-]Warning ", error)
+ 
+    if mode==IMPORT_SCAN_MODE: 
+        path_head,path_tail=os.path.split( src )
+        if len(path_head) > 0:
+            orginal_wrkdir = os.path.abspath(os.curdir)
+            print("orginal_wrkdir",orginal_wrkdir) 
+            os.chdir(path_head)              
+        else: orginal_wrkdir = None    
+        package_name = path_tail
+        magic_init_path = __get_module_path( package_name ) 
+        #print( "package init_path", magic_init_path )                    
+        # Build this raw "markdown map" first via "magic comments"   
+        mdMap={} # { markdown_file_path : source_lines }    
+        try: 
+            with open( magic_init_path, 'r' ) as f: init_content=f.read()
+        except Exception as error: 
+            print("ERROR: cannot read from path: %s" % (magic_init_path,))
+            raise error        
+        lines = init_content.split('\n')
+        mdfile_name = None        
+        if MAGIC_DOCNAME_COMMENT in init_content:
+            source_lines=[]
+            for line in lines:
+                if line.strip().startswith( MAGIC_DOCNAME_COMMENT ):
+                    try: 
+                        input_name=line.split( MAGIC_DOCNAME_COMMENT )[1].strip()
+                    except Exception as error: 
+                        input_name=None
+                        print("[-]Error processing magic comment: %s" % 
+                              (line,), error)
+                    if input_name != mdfile_name:                                                                                 
+                        if mdfile_name:
+                            #print("Magic doc mapped: %s" % (mdfile_name,)) 
+                            mdMap[mdfile_name]=[]
+                            mdMap[mdfile_name].extend(source_lines)
+                        mdfile_name=input_name
+                        source_lines=[]                    
+                source_lines.append(line)                   
+            if mdfile_name:
+                #print("Magic doc mapped: %s" % (mdfile_name,)) 
+                mdMap[mdfile_name]=[]
+                mdMap[mdfile_name].extend(source_lines)
+        else:                
+            mdfile_name = "%s.md" % (package_name,) 
+            mdMap[mdfile_name]=lines
+        
+        # Process the "markdown map", generating the requested docs
+        #print( "mdMap", mdMap )    
+        for mdfile_name in mdMap: 
+            source_lines=mdMap[mdfile_name]
+            parsed = __parseSnippetIdentifiers( 
+                package_name, magic_init_path, source_lines )
+            #print( "parsed", parsed )
+            if not parsed: continue                           
+            mdfile_path = os.path.join(doc_path, mdfile_name)    
+            md_file = open( mdfile_path, "w")   
+            #print("Writing document: %s" % (mdfile_name,))  
+            class_info, func_info, var_info = parsed
+            #print( class_info, func_info, var_info )       # (path)
+            for name in class_info: __write_class(md_file, class_info[name], name)
+            if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
+            for name in func_info: __write_func(md_file, func_info[name], name)     
+            for name in var_info: pass # repeat with var_names                           
+            md_file.close()    
+            try: toc += get_toc_lines_from_file_path(mdfile_name)
+            except Exception as error: print("[-]Warning ", error)   
+        # restore working directory if it were changed
+        if orginal_wrkdir: os.chdir(orginal_wrkdir)
+    else:         
+        code_path = os.path.abspath(src)
+        package_name = code_path.split("/")[-1]
+        root_path = os.path.dirname(code_path)
+         
+        # load the architecture of the module
+        ign_pref_file = "__"
+        full_list_glob = glob.glob(code_path + "/**", recursive=True)
+        list_glob = [
+            p
+            for p in full_list_glob
+            if "/" + ign_pref_file not in p and os.path.isfile(p) and p[-3:] == ".py" \
+                and "__init__" not in p
+        ]
 
+        # write every markdown files based on the architecture
+        #Since windows and Linux platforms utilizes different slash in their file structure
+        system_slash_style = {"Windows": "\\", "Linux": "/"}                
+        for mod in list_glob:
+            module_name = mod[len(root_path) + 1 : -3]\
+                .replace(system_slash_style.get(platform.system(), "/"), ".")
+            mdfile_path = os.path.join(
+                doc_path, mod[len(code_path) + 1:-3] + ".md"
+            )
+            mdfile_name = mdfile_path[len(doc_path) + 1:]
+            try:
+                write_module(root_path, module_name, mdfile_path)
+                toc += get_toc_lines_from_file_path(mdfile_name)
+            except Exception as error:
+                print("[-]Warning ", error)
+
+    #print( "toc", toc )
     if len(toc) == 0:
-        raise ValueError("All the files seems invalid")
-
+        raise ValueError("All the files seem invalid")
+    
     #removed the condition because it would'nt update the yml file in case
     #of any update in the source code
     yml_path = os.path.join(mainfolder, 'mkdocs.yml')

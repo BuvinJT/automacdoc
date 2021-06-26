@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
      name='AutoMacDoc',
-     version='0.3',
+     version='0.4',
      entry_points={"console_scripts": ["automacdoc = automacdoc.main:main"]},
      author="Alexandre Kempf",
      author_email="alexandre.kempf@¢ri-paris.org",
