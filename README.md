@@ -21,17 +21,22 @@ With pip pardi : `pip install automacdoc`
 
 ## Recipe to make it work!
   - Ingredients:
-    - a folder containing Python source files (e.g. the `example` folder in this repo)
-    - ideally, custom Docstrings are include in that code, to supplement the auto generated text
+    - 1 folder containing Python source files (e.g. the `example` folder in this repo)
+    - 1 (or more!) custom Docstrings are ideally include in that code, to supplement the auto generated text
 
   - Easy steps:
-    - install automacdoc
-    - open a terminal and change to the project directory. ex: `cd automacdoc`
-    - execute `automacdoc [source] [destination]` ex: `automacdoc example/src example`
+    - Install automacdoc.
+    - Open a terminal and change to the project directory. Example: `cd automacdoc`
+    - Run automacdoc. Example: `automacdoc example/src example`
     
-  - Try "Import Scan Mode":
-    - execute `automacdoc [-i/-d] [source] [destination]` ex: `automacdoc -i example/src example`
+  - Full command line argument details:
 
+>     ---| AutoMacDoc |---
+>     Usage: automacdoc [-d/-i] source destination [-c] [-s]
+>     -d: directory scan mode (default) / -i: import scan mode
+>     -c: include source code option
+>     -s: serve site option
+ 
 ## How does this work?
 AutoMacDoc analyzes your Python source and generates both markdown, and markup, documentation from it!
 It creates:

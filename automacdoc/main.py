@@ -10,11 +10,13 @@ HELP_SWITCHES      = ["-h","--help","/?"]
 SERVE_SWITCH       = "-s"
 DIR_SCAN_SWITCH    = "-d"     
 IMPORT_SCAN_SWITCH = "-i"
+SOURCE_SWITCH      = "-c"
 TITLE = "---| AutoMacDoc |---"
-USAGE =("Usage: automacdoc [{0}/{1}] source destination [{2}]\n"
+USAGE =("Usage: automacdoc [{0}/{1}] source destination [{2}] [{3}]\n"
         "{0}: directory scan mode (default) / {1}: import scan mode\n"
-        "{2}: serve site option\n"
-        ).format( DIR_SCAN_SWITCH, IMPORT_SCAN_SWITCH, SERVE_SWITCH )
+        "{2}: include source code option\n"
+        "{3}: serve site option\n"
+        ).format( DIR_SCAN_SWITCH, IMPORT_SCAN_SWITCH, SOURCE_SWITCH, SERVE_SWITCH )
 
 __MODES={ DIR_SCAN_SWITCH:DIR_SCAN_MODE
         , IMPORT_SCAN_SWITCH:IMPORT_SCAN_MODE }
@@ -36,9 +38,10 @@ def main(argv=None):
     src        = argv1 if arg_count < 3 else argv2
     mainfolder = argv2 if arg_count < 3 else argv3  
     mode       = __MODES.get(argv1,DIR_SCAN_MODE)    
-    is_serve   = SERVE_SWITCH in argv
+    is_source  = SOURCE_SWITCH in argv
+    is_serve   = SERVE_SWITCH in argv 
     
-    try: write_doc( src, mainfolder, mode )        
+    try: write_doc( src, mainfolder, mode, is_source )        
     except Exception as error:
         print("[-] Error ", str(error))
         traceback.print_exc()

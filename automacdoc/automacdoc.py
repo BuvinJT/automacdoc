@@ -201,7 +201,7 @@ source_md = (
     format
 )  # source
 
-def write_attribute(md_file, att, clas=None):
+def write_attribute(md_file, att, is_source_shown, clas=None):
     """
     Add the documentation of a function to a markdown file
 
@@ -215,13 +215,13 @@ def write_attribute(md_file, att, clas=None):
 
     md_file.writelines(attribute_name_md(att["name"],att["type"])) 
     #md_file.writelines(doc_md(att["doc"]))
-    #md_file.writelines(source_md(att["source"]))    
+    #if is_source_shown: md_file.writelines(source_md(att["source"]))    
 
 def write_vars_header(md_file): md_file.writelines(all_vars_md())
 
 def write_functions_header(md_file): md_file.writelines(all_funcs_md())
 
-def write_function(md_file, fun):
+def write_function(md_file, fun, is_source_shown):
     """
     Add the documentation of a function to a markdown file
 
@@ -235,9 +235,9 @@ def write_function(md_file, fun):
 
     md_file.writelines(function_name_md(fun["name"], fun["args"]))
     md_file.writelines(doc_md(fun["doc"]))
-    md_file.writelines(source_md(fun["source"]))
+    if is_source_shown: md_file.writelines(source_md(fun["source"]))
 
-def write_method(md_file, method, clas):
+def write_method(md_file, method, clas, is_source_shown):
     """
     Add the documentation of a method to a markdown file
 
@@ -254,10 +254,10 @@ def write_method(md_file, method, clas):
         method_name_md(clas["name"], method["name"], method["args"])
     )
     md_file.writelines(doc_md(method["doc"]))
-    md_file.writelines(source_md(method["source"]))
+    if is_source_shown: md_file.writelines(source_md(method["source"]))
 
 
-def write_class(md_file, clas):
+def write_class(md_file, clas, is_source_shown):
     """
     Add the documentation of a class to a markdown file
 
@@ -292,24 +292,25 @@ def write_class(md_file, clas):
     md_file.writelines("\n")
 
     for m in clas["class_attributes"]:
-        write_attribute(md_file, m, clas)    
+        write_attribute(md_file, m, is_source_shown, clas)    
 
     for f in clas["functions"]:
         write_method(
-            md_file, f, clas
+            md_file, f, clas, is_source_shown
         )  # use write_method to get the clas prefix
 
     for m in clas["methods"]:
-        write_method(md_file, m, clas)    
+        write_method(md_file, m, clas, is_source_shown)    
 
     for m in clas["object_attributes"]:
-        write_attribute(md_file, m, clas)    
+        write_attribute(md_file, m, is_source_shown, clas)    
 
 def write_module(
     path_to_home: str,
     module_import: str,
     path_to_md: str,
     ignore_prefix_function: str = None,
+    is_source_shown=False
 ):
     """
     Generate a Markdown file based on the content of a Python module
@@ -345,11 +346,11 @@ def write_module(
     md_file = open(path_to_md, "w")
 
     for c in clas:
-        write_class(md_file, c)
+        write_class(md_file, c, is_source_shown)
         md_file.writelines("""\n______\n\n""")
 
     for f in funs:
-        write_function(md_file, f)
+        write_function(md_file, f, is_source_shown)
         md_file.writelines("""\n______\n\n""")
 
     md_file.close()
@@ -530,36 +531,36 @@ def __get_import_vars( module ):
         import_vars.append((n,o))
     return import_vars
        
-def __write_class( md_file, module_path: str, class_name: str ):
+def __write_class( md_file, module_path: str, class_name: str, is_source_shown ):
     try:
         module = __get_import_by_path( module_path )
         clas = __get_import_class( module, class_name, ignore_prefix_function='_' )        
         if clas:
-            write_class(md_file, clas)
+            write_class(md_file, clas, is_source_shown)
             md_file.writelines("""\n______\n\n""")
     except: 
         print("Warning: failed to write definition of class %s from %s" % 
               (class_name, module_path))
         traceback.print_exc()
        
-def __write_func( md_file, module_path: str, func_name: str ):
+def __write_func( md_file, module_path: str, func_name: str, is_source_shown ):
     try:
         module = __get_import_by_path( module_path )
         func = __get_import_func( module, func_name, ignore_prefix_function='_' )        
         if func:
-            write_function(md_file, func)
+            write_function(md_file, func, is_source_shown)
             md_file.writelines("""\n______\n\n""")
     except: 
         print("Warning: failed to write definition of function %s from %s" % 
               (func_name, module_path))
         traceback.print_exc()
 
-def __write_var( md_file, module_path: str, var_name: str ):
+def __write_var( md_file, module_path: str, var_name: str, is_source_shown ):
     try:
         module = __get_import_by_path( module_path )
         var = __get_import_var( module, var_name, ignore_prefix_function='_' )        
         if var:
-            write_attribute(md_file, var)
+            write_attribute(md_file, var, is_source_shown)
             md_file.writelines("""\n______\n\n""")
     except: 
         print("Warning: failed to write definition of variable %s from %s" % 
@@ -622,8 +623,8 @@ def __parseSnippetIdentifiers( module_name, magic_init_path, source_lines ):
                             
     return class_info, func_info, var_info
 
-def write_doc(src: str, mainfolder: str, mode=DIR_SCAN_MODE):
-    #print( "write_doc", src, mainfolder, mode )
+def write_doc(src: str, mainfolder: str, mode=DIR_SCAN_MODE, is_source_shown=False):
+    print( "write_doc", src, mainfolder, mode, is_source_shown )
     # variables
     project_icon = "code"  # https://material.io/tools/icons/?style=baseline
     # setting the paths variable
@@ -688,12 +689,15 @@ def write_doc(src: str, mainfolder: str, mode=DIR_SCAN_MODE):
             #print("Writing document: %s" % (mdfile_name,))  
             class_info, func_info, var_info = parsed
             #print( class_info, func_info, var_info )       # (path)
-            for name in class_info: __write_class(md_file, class_info[name], name)
+            for name in class_info: 
+                __write_class(md_file, class_info[name], name, is_source_shown)
             if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
-            for name in func_info: __write_func(md_file, func_info[name], name)     
+            for name in func_info: 
+                __write_func(md_file, func_info[name], name, is_source_shown)     
             if len(var_info) > 0 and (len(func_info) > 0 or len(class_info) > 0): 
                 write_vars_header(md_file)
-            for name in var_info:  __write_var(md_file, var_info[name], name)                           
+            for name in var_info:  
+                __write_var(md_file, var_info[name], name, is_source_shown)                           
             md_file.close()    
             try: toc += get_toc_lines_from_file_path(mdfile_name)
             except Exception as error: print("[-]Warning ", error)   
@@ -725,7 +729,7 @@ def write_doc(src: str, mainfolder: str, mode=DIR_SCAN_MODE):
             )
             mdfile_name = mdfile_path[len(doc_path) + 1:]
             try:
-                write_module(root_path, module_name, mdfile_path)
+                write_module(root_path, module_name, mdfile_path, is_source_shown)
                 toc += get_toc_lines_from_file_path(mdfile_name)
             except Exception as error:
                 print("[-]Warning ", error)
