@@ -31,12 +31,14 @@ With pip pardi : `pip install automacdoc`
     
   - Full command line argument details:
 
-> | AutoMacDoc |
-> Generates MkDoc website from Python source code
-> Usage: automacdoc source destination [-d/-i] [-c] [-s]
-> -d: directory scan mode (default) / -i: import scan mode
-> -c: include source code
-> -s: serve site option
+```
+| AutoMacDoc |
+Generates MkDoc website from Python source code
+Usage: automacdoc source destination [-d/-i] [-c] [-s]
+-d: directory scan mode (default) / -i: import scan mode
+-c: include source code
+-s: serve site option
+```
  
 ## How does this work?
 AutoMacDoc analyzes your Python source and generates both markdown, and markup, documentation from it!

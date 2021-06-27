@@ -67,9 +67,9 @@ def create_att(name: str, obj, options: dict):
         return None
 
     att = {}
-    att["name"]  = name if name else 'undefined'
+    att["name"]  = 'undefined' if name is None else name  
     att["obj"]   = obj
-    att["type"]  = __markdown_safe(type(obj))
+    att["type"]  = 'undefined' if obj is None else __markdown_safe(type(obj)) 
     att["value"] = 0    
     """
     try:    att["module"] = inspect.getmodule(obj).__name__
@@ -170,6 +170,26 @@ def create_class(name: str, obj, options: dict):
         if n not in builtin_names and n not in method_names:
             a = create_att(n, o, options)
             if a: clas["class_attributes"].append(a)
+
+    class ClassVisitor(ast.NodeVisitor):
+        def visit_ClassDef(self, node):
+            if node.name==name: InitVisitor().visit(node)
+            
+    class InitVisitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node):
+            if node.name != '__init__': return 
+            for statement in node.body:
+                if isinstance(statement, ast.Assign):
+                    for target in statement.targets:
+                        if isinstance(target, ast.Attribute):
+                            name = target.attr
+                            #if isinstance(statement.value, ast.Name):
+                            #    value = str(statement.value.id)
+                            a = create_att(name, None, options)
+                            if a: clas["object_attributes"].append(a)
+    with open(clas["path"],'r') as f: mod_source = f.read()            
+    ClassVisitor().generic_visit(ast.parse(mod_source))
+                        
     return clas
 
 
@@ -469,8 +489,8 @@ def __get_source_path( module, member_name ):
             try: return inspect.getmodule(o).__file__
             except: 
                 default = module.__file__                
-                print("Warning: cannot get source path for: %s fall back: %s" % 
-                      (member_name,default))
+                #print("Warning: cannot get source path for: %s fall back: %s" % 
+                #      (member_name,default))
                 return default
 
 def __get_import_class_names( module ): 
