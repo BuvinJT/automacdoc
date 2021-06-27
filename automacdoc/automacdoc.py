@@ -13,6 +13,10 @@ DIR_SCAN_MODE, IMPORT_SCAN_MODE = range(2)
 
 MAGIC_DOCNAME_COMMENT='# DOCS >>'
 
+# TODO: define this function correctly
+def __markdown_safe(obj): 
+    return str(obj).replace('<','').replace('>','')
+
 def rm_docstring_from_source(source):
     """
     Remote the docstring from the source code of a function or a class
@@ -34,6 +38,56 @@ def rm_docstring_from_source(source):
         source[i] = "\t" + source[i][nb_indent:]
     source = "\n".join(source)
     return source
+
+def create_var(name: str, obj, ignore_prefix_function: str):
+    return create_att(name, obj, ignore_prefix_function)
+
+def create_att(name: str, obj, ignore_prefix_function: str):
+    """
+    Generate a dictionary that contains the information about an attribute
+
+    **Parameters**
+    > **name:** `str` -- name of the attribute as returned by `inspect.getmembers`
+    > **obj:** `object` -- object of the attribute as returned by `inspect.getmembers`
+    > **ignore_prefix_function:** `str` -- *None* -- precise the prefix of attribute names to ignore
+
+    **Returns**
+    > `dict` -- with keys:
+    >  - *name*, *obj* -- the attribute name and object as returned by `inspect.getmembers`
+    >  - *module* -- name of the module
+    >  - *path* -- path of the module file
+    >  - *doc* -- docstring of the attribute
+    >  - *source* -- source code of the attribute    
+    >  - *type* -- type of the attribute
+    >  - *value* -- value of the attribute
+    """
+
+    if (
+        ignore_prefix_function is not None
+        and name[:len(ignore_prefix_function)] == ignore_prefix_function
+    ):
+        return None
+
+    att = {}
+    att["name"]  = name if name else 'undefined'
+    att["obj"]   = obj
+    att["type"]  = __markdown_safe(type(obj))
+    att["value"] = 0    
+    """
+    try:    att["module"] = inspect.getmodule(obj).__name__
+    except: att["module"] = None
+    try:    att["path"] = inspect.getmodule(obj).__file__
+    except: att["path"] = None
+    try:    att["doc"] = inspect.getdoc(obj) or ""
+    except: att["doc"] = None
+    try:    att["source"] = inspect.getsource(obj)
+    except: att["source"] = None
+    """    
+    att["module"] = None
+    att["path"] = None
+    att["doc"] = None
+    att["source"] = None
+    return att
 
 
 def create_fun(name: str, obj, ignore_prefix_function: str):
@@ -91,6 +145,7 @@ def create_class(name: str, obj, ignore_prefix_function: str):
     >  - *args* -- arguments of the class as a `inspect.signature` object
     >  - *functions* -- list of functions that are in the class (formatted as dict)
     >  - *methods* -- list of methods that are in the class (formatted as dict)
+    >  - *attributes* -- list of attributes that are in the class (formatted as dict)
     """
     clas = {}
     clas["name"] = name
@@ -100,15 +155,25 @@ def create_class(name: str, obj, ignore_prefix_function: str):
     clas["doc"] = inspect.getdoc(obj) or ""
     clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
     clas["args"] = inspect.signature(obj)
-    clas["functions"]=[]
+    clas["functions"] = []
+    clas["class_attributes"] = []
     clas["methods"] = []    
+    clas["object_attributes"] = []        
+    method_names = []
     # avoid the collection of create_fun failures, i.e. None returns 
     for n, o in inspect.getmembers(obj, inspect.isfunction):
+        method_names.append(n)
         f = create_fun(n, o, ignore_prefix_function)
         if f: clas["functions"].append(f)
     for n, o in inspect.getmembers(obj, inspect.ismethod):
+        method_names.append(n)
         f = create_fun(n, o, ignore_prefix_function)
         if f: clas["methods"].append(f)
+    builtin_names = __builtin_object_member_names()    
+    for n, o in inspect.getmembers(obj):        
+        if n not in builtin_names and n not in method_names:
+            a = create_att(n, o, ignore_prefix_function)
+            if a: clas["class_attributes"].append(a)
     return clas
 
 
@@ -118,6 +183,12 @@ class_name_md = (
 method_name_md = (
     "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
 )  # class, name, args
+attribute_name_md = ( 
+    "### **{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, type
+all_vars_md= (
+    "## **Constants and Globals** {{ #Constants-and-Globals data-toc-label=\"Constants and Globals\" }}\n\n".format
+)  
 all_funcs_md = (
     "## **Functions** {{ #Functions data-toc-label=Functions }}\n\n".format
 )  # name
@@ -129,6 +200,24 @@ source_md = (
     '\n\n??? info "Source Code" \n\t```py3 linenums="1 1 2" \n{}\n\t```\n'.
     format
 )  # source
+
+def write_attribute(md_file, att, clas=None):
+    """
+    Add the documentation of a function to a markdown file
+
+    **Parameters**
+    > **md_file:** `file` -- file object of the markdown file
+    > **att:** `dict` -- attribute information organized as a dict (see `create_att`)
+
+    """
+    if att is None:
+        return
+
+    md_file.writelines(attribute_name_md(att["name"],att["type"])) 
+    #md_file.writelines(doc_md(att["doc"]))
+    #md_file.writelines(source_md(att["source"]))    
+
+def write_vars_header(md_file): md_file.writelines(all_vars_md())
 
 def write_functions_header(md_file): md_file.writelines(all_funcs_md())
 
@@ -179,28 +268,42 @@ def write_class(md_file, clas):
     """
     md_file.writelines(class_name_md(clas["name"]))
     md_file.writelines(doc_md(clas["doc"]))
-    # list of methods
-    if len(clas["methods"]):
-        md_file.writelines("\n**class methods:** \n\n")
-        for m in clas["methods"]:
+
+    if len(clas["class_attributes"]):
+        md_file.writelines("\n**class/static attributes:** \n\n")
+        for m in clas["class_attributes"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
 
-            # list of functions
     if len(clas["functions"]) > 0:
-        md_file.writelines("\n**class functions & static methods:** \n\n")
+        md_file.writelines("\n**class/static methods:** \n\n")
         for f in clas["functions"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(f["name"]))
 
+    if len(clas["methods"]):
+        md_file.writelines("\n**object methods:** \n\n")
+        for m in clas["methods"]:
+            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
+
+    if len(clas["object_attributes"]):
+        md_file.writelines("\n**object attributes:** \n\n")
+        for m in clas["object_attributes"]:
+            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
+
     md_file.writelines("\n")
 
-    for m in clas["methods"]:
-        write_method(md_file, m, clas)
+    for m in clas["class_attributes"]:
+        write_attribute(md_file, m, clas)    
 
     for f in clas["functions"]:
         write_method(
             md_file, f, clas
         )  # use write_method to get the clas prefix
 
+    for m in clas["methods"]:
+        write_method(md_file, m, clas)    
+
+    for m in clas["object_attributes"]:
+        write_attribute(md_file, m, clas)    
 
 def write_module(
     path_to_home: str,
@@ -361,8 +464,14 @@ def __get_import_by_path( path: str, is_silent=False ):
     
 def __get_source_path( module, member_name ):
     for n, o in inspect.getmembers( module ):
-        if n==member_name: return inspect.getmodule(o).__file__
-    
+        if n==member_name: 
+            try: return inspect.getmodule(o).__file__
+            except: 
+                default = module.__file__                
+                print("Warning: cannot get source path for: %s fall back: %s" % 
+                      (member_name,default))
+                return default
+
 def __get_import_class_names( module ): 
     return [n for n,_ in inspect.getmembers(module, inspect.isclass)]
 
@@ -376,6 +485,50 @@ def __get_import_class( module, classname: str, ignore_prefix_function: str ):
 def __get_import_func( module, funcname: str, ignore_prefix_function: str ): 
     for n, o in inspect.getmembers(module, inspect.isfunction):
         if n==funcname: return create_fun(n, o, ignore_prefix_function)
+
+def __get_import_var( module, varname: str, ignore_prefix_function: str ):
+    for n, o in __get_import_vars( module ):
+        if n==varname: return create_var(n, o, ignore_prefix_function)
+
+def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
+
+def __is_private_name( name: str ): return name.startswith('__')
+
+def __is_protected_name( name: str ): return name.startswith('_')
+
+def __builtin_object_member_names(): return dir(type('dummy', (object,), {}))
+        
+def __get_import_vars( module ): 
+    import_vars=[]
+    builtin_names=__builtin_object_member_names()
+    for n,o in inspect.getmembers(module):
+        if __is_protected_name(n): continue
+        if __is_private_name(n): continue
+        if __is_magic_name(n): continue        
+        if n in builtin_names: continue        
+        if inspect.isabstract(o): continue
+        if inspect.isasyncgen(o): continue
+        if inspect.isasyncgenfunction(o): continue
+        if inspect.isawaitable(o): continue
+        if inspect.isbuiltin(o): continue
+        if inspect.isclass(o): continue
+        if inspect.iscode(o): continue
+        if inspect.iscoroutine(o): continue
+        if inspect.iscoroutinefunction(o): continue
+        if inspect.isdatadescriptor(o): continue
+        if inspect.isframe(o): continue
+        if inspect.isfunction(o): continue
+        if inspect.isgenerator(o): continue
+        if inspect.isgeneratorfunction(o): continue
+        if inspect.isgetsetdescriptor(o): continue
+        if inspect.ismemberdescriptor(o): continue
+        if inspect.ismethod(o): continue
+        if inspect.ismethoddescriptor(o): continue
+        if inspect.ismodule(o): continue
+        if inspect.isroutine(o): continue
+        if inspect.istraceback(o): continue
+        import_vars.append((n,o))
+    return import_vars
        
 def __write_class( md_file, module_path: str, class_name: str ):
     try:
@@ -385,20 +538,32 @@ def __write_class( md_file, module_path: str, class_name: str ):
             write_class(md_file, clas)
             md_file.writelines("""\n______\n\n""")
     except: 
-        print("WARNING: failed to write definition of class %s from %s" % 
+        print("Warning: failed to write definition of class %s from %s" % 
               (class_name, module_path))
         traceback.print_exc()
        
-def __write_func( md_file, module_path: str, class_name: str ):
+def __write_func( md_file, module_path: str, func_name: str ):
     try:
         module = __get_import_by_path( module_path )
-        func = __get_import_func( module, class_name, ignore_prefix_function='_' )        
+        func = __get_import_func( module, func_name, ignore_prefix_function='_' )        
         if func:
             write_function(md_file, func)
             md_file.writelines("""\n______\n\n""")
     except: 
-        print("WARNING: failed to write definition of class %s from %s" % 
-              (class_name, module_path))
+        print("Warning: failed to write definition of function %s from %s" % 
+              (func_name, module_path))
+        traceback.print_exc()
+
+def __write_var( md_file, module_path: str, var_name: str ):
+    try:
+        module = __get_import_by_path( module_path )
+        var = __get_import_var( module, var_name, ignore_prefix_function='_' )        
+        if var:
+            write_attribute(md_file, var)
+            md_file.writelines("""\n______\n\n""")
+    except: 
+        print("Warning: failed to write definition of variable %s from %s" % 
+              (var_name, module_path))
         traceback.print_exc()
         
 def __parseSnippetIdentifiers( module_name, magic_init_path, source_lines ):   
@@ -406,7 +571,7 @@ def __parseSnippetIdentifiers( module_name, magic_init_path, source_lines ):
     def __get_all_names( module ):     
         class_names=[ n for n,_ in inspect.getmembers(module, inspect.isclass) ] 
         func_names=[ n for n,_ in inspect.getmembers(module, inspect.isfunction) ]
-        var_names=[]
+        var_names=[ n for n,_ in __get_import_vars( module ) ]
         return class_names, func_names, var_names
     
     def __get_identifier_names( ast_root_node ):        
@@ -458,7 +623,7 @@ def __parseSnippetIdentifiers( module_name, magic_init_path, source_lines ):
     return class_info, func_info, var_info
 
 def write_doc(src: str, mainfolder: str, mode=DIR_SCAN_MODE):
-    print( "write_doc", src, mainfolder, mode )
+    #print( "write_doc", src, mainfolder, mode )
     # variables
     project_icon = "code"  # https://material.io/tools/icons/?style=baseline
     # setting the paths variable
@@ -472,7 +637,6 @@ def write_doc(src: str, mainfolder: str, mode=DIR_SCAN_MODE):
         path_head,path_tail=os.path.split( src )
         if len(path_head) > 0:
             orginal_wrkdir = os.path.abspath(os.curdir)
-            print("orginal_wrkdir",orginal_wrkdir) 
             os.chdir(path_head)              
         else: orginal_wrkdir = None    
         package_name = path_tail
@@ -499,14 +663,12 @@ def write_doc(src: str, mainfolder: str, mode=DIR_SCAN_MODE):
                               (line,), error)
                     if input_name != mdfile_name:                                                                                 
                         if mdfile_name:
-                            #print("Magic doc mapped: %s" % (mdfile_name,)) 
                             mdMap[mdfile_name]=[]
                             mdMap[mdfile_name].extend(source_lines)
                         mdfile_name=input_name
                         source_lines=[]                    
                 source_lines.append(line)                   
             if mdfile_name:
-                #print("Magic doc mapped: %s" % (mdfile_name,)) 
                 mdMap[mdfile_name]=[]
                 mdMap[mdfile_name].extend(source_lines)
         else:                
@@ -529,7 +691,9 @@ def write_doc(src: str, mainfolder: str, mode=DIR_SCAN_MODE):
             for name in class_info: __write_class(md_file, class_info[name], name)
             if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
             for name in func_info: __write_func(md_file, func_info[name], name)     
-            for name in var_info: pass # repeat with var_names                           
+            if len(var_info) > 0 and (len(func_info) > 0 or len(class_info) > 0): 
+                write_vars_header(md_file)
+            for name in var_info:  __write_var(md_file, var_info[name], name)                           
             md_file.close()    
             try: toc += get_toc_lines_from_file_path(mdfile_name)
             except Exception as error: print("[-]Warning ", error)   

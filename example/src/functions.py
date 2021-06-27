@@ -1,5 +1,6 @@
 import numpy as np
 
+MIN_SIZE=-1
 
 def mini(x, y):
     """

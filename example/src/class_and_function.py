@@ -37,6 +37,8 @@ def maxi2pourvoir(x, y):
 
 class Shark:
 
+    SHARK_COUNTER=0
+
     @classmethod
     def swimclass(self, a):
         """
@@ -91,3 +93,17 @@ class Shark:
         > `float` -- Description of returned object.
         """
         print("The shark is being awesome.")
+
+    def __init__(self, name:str="?"):
+        """
+        Construct a Shark
+
+        **Parameters**
+
+        > **name:** `str` -- Name of the Shark.
+
+        """
+        self.name=name
+        
+        
+        
