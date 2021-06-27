@@ -31,7 +31,7 @@ def __parse_args(argv):
     SOURCE_SWITCH      = "-c"
     SERVE_SWITCH       = "-s"
     TITLE = "| AutoMacDoc |"
-    DESCR = "Generates MkDoc website from Python source code"
+    DESCR = "This utility generates MkDocs websites from Python source code."
     USAGE =("Usage: automacdoc source destination [{0}/{1}] [{2}] [{3}]\n"
             "{0}: directory scan mode (default) / {1}: import scan mode\n"
             "{2}: include source code\n"

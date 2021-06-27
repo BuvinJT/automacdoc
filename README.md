@@ -33,7 +33,7 @@ With pip pardi : `pip install automacdoc`
 
 ```
 | AutoMacDoc |
-Generates MkDoc website from Python source code
+This utility generates MkDocs websites from Python source code.
 Usage: automacdoc source destination [-d/-i] [-c] [-s]
 -d: directory scan mode (default) / -i: import scan mode
 -c: include source code

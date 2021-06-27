@@ -37,35 +37,21 @@ def maxi2pourvoir(x, y):
 
 class Shark:
 
-    SHARK_COUNTER=0
-
-    @classmethod
-    def swimclass(self, a):
-        """
-        Teach them how to swim
-
-        **Parameters**
-
-        > **self:** `obj` -- Instance of `Shark`.
-
-        **Returns**
-
-        > `bool` -- Did they succeed.
-        """
-        print('prout')
-        print("The shark is swimming.")
-        for i in range(2):
-            print("lololo")
-        return
+    SMALL, MEDIUM, LARGE = range(3)
+    
+    class Type: White, Hammerhead, Mako = range(3)
+    
+    _counter=0
+    __current=None
 
     @staticmethod
-    def swimstatic(self, a):
+    def swimstatic(a):
         """
         Teach them how to swim
 
         **Parameters**
 
-        > **self:** `obj` -- Instance of `Shark`.
+        > **a:** `obj` -- Instance of `Shark`.
 
         **Returns**
 
@@ -77,26 +63,28 @@ class Shark:
             print("lololo")
         return
 
-
-    def be_awesome(self):
+    @classmethod
+    def swimclass(cls, lessons):
         """
-        Take the max between two numbers
+        Teach them how to swim
 
         **Parameters**
 
-        > **x:** `float` -- Description of parameter `x`.
-
-        > **y:** `float` -- Description of parameter `y`.
+        > **lessons:** `list` -- `Lessons` to take teach.
 
         **Returns**
 
-        > `float` -- Description of returned object.
+        > `bool` -- Did they succeed.
         """
-        print("The shark is being awesome.")
+        print('prout')
+        print("The shark is swimming.")
+        for i in range(2):
+            print("lololo")
+        return
 
     def __init__(self, name:str="?"):
         """
-        Construct a Shark
+        Initialize a Shark
 
         **Parameters**
 
@@ -104,6 +92,19 @@ class Shark:
 
         """
         self.name=name
-        
-        
-        
+        self._protected_name=name+'-pro'
+        self.__private_name=name+'-pri'
+                
+    def be_awesome(self):
+        """
+        Do what sharks do
+
+        **Parameters**
+
+        > **self:** `obj` -- Instance of `Shark`.
+ 
+        **Returns**
+
+        > `None`
+        """
+        print("The shark is being awesome.")

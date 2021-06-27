@@ -7,6 +7,7 @@ import sys
 import platform
 import glob
 import traceback
+import operator 
 # ----------------
  
 DIR_SCAN_MODE, IMPORT_SCAN_MODE = range(2)
@@ -151,23 +152,37 @@ def create_class(name: str, obj, options: dict):
     clas["doc"] = inspect.getdoc(obj) or ""
     clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
     clas["args"] = inspect.signature(obj)
-    clas["functions"] = []
     clas["class_attributes"] = []
-    clas["methods"] = []    
-    clas["object_attributes"] = []        
-    method_names = []
-    # avoid the collection of create_fun failures, i.e. None returns 
+    clas["class_methods"] = []
+    clas["instance_methods"] = []    
+    clas["instance_attributes"] = []        
+    methods = []
+    all_method_names = []
     for n, o in inspect.getmembers(obj, inspect.isfunction):
-        method_names.append(n)
+        try: 
+            # sometimes inspect reports an object to be function when it should
+            # be a method! This corrects for that mistake.            
+            is_method = len(
+                [p for i,p in enumerate(inspect.signature(o).parameters)
+                 if i==0 and p=='self'] ) > 0
+            if is_method: 
+                methods.append( (n,o) )
+                continue
+        except: pass                 
+        all_method_names.append(n)
+        f = create_fun(n, o, options)        
+        if f: clas["class_methods"].append(f)        
+    # combine the methods already found in the functions list with those 
+    # returned by inspect   
+    methods.extend( inspect.getmembers(obj, inspect.ismethod) )
+    methods.sort(key=operator.itemgetter(0))
+    for n, o in methods:
+        all_method_names.append(n)
         f = create_fun(n, o, options)
-        if f: clas["functions"].append(f)
-    for n, o in inspect.getmembers(obj, inspect.ismethod):
-        method_names.append(n)
-        f = create_fun(n, o, options)
-        if f: clas["methods"].append(f)
+        if f: clas["instance_methods"].append(f)
     builtin_names = __builtin_object_member_names()    
     for n, o in inspect.getmembers(obj):        
-        if n not in builtin_names and n not in method_names:
+        if n not in builtin_names and n not in all_method_names:
             a = create_att(n, o, options)
             if a: clas["class_attributes"].append(a)
 
@@ -186,7 +201,7 @@ def create_class(name: str, obj, options: dict):
                             #if isinstance(statement.value, ast.Name):
                             #    value = str(statement.value.id)
                             a = create_att(name, None, options)
-                            if a: clas["object_attributes"].append(a)
+                            if a: clas["instance_attributes"].append(a)
     with open(clas["path"],'r') as f: mod_source = f.read()            
     ClassVisitor().generic_visit(ast.parse(mod_source))
                         
@@ -293,36 +308,28 @@ def write_class(md_file, clas, options):
         md_file.writelines("\n**class/static attributes:** \n\n")
         for m in clas["class_attributes"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
-
-    if len(clas["functions"]) > 0:
+    if len(clas["class_methods"]) > 0:
         md_file.writelines("\n**class/static methods:** \n\n")
-        for f in clas["functions"]:
+        for f in clas["class_methods"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(f["name"]))
-
-    if len(clas["methods"]):
-        md_file.writelines("\n**object methods:** \n\n")
-        for m in clas["methods"]:
+    if len(clas["instance_methods"]):
+        md_file.writelines("\n**Instance methods:** \n\n")
+        for m in clas["instance_methods"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
-
-    if len(clas["object_attributes"]):
-        md_file.writelines("\n**object attributes:** \n\n")
-        for m in clas["object_attributes"]:
+    if len(clas["instance_attributes"]):
+        md_file.writelines("\n**Instance attributes:** \n\n")
+        for m in clas["instance_attributes"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
 
     md_file.writelines("\n")
 
     for m in clas["class_attributes"]:
         write_attribute(md_file, m, options, clas)    
-
-    for f in clas["functions"]:
-        write_method(
-            md_file, f, clas, options
-        )  # use write_method to get the clas prefix
-
-    for m in clas["methods"]:
+    for f in clas["class_methods"]:
+        write_method( md_file, f, clas, options )  
+    for m in clas["instance_methods"]:
         write_method(md_file, m, clas, options)    
-
-    for m in clas["object_attributes"]:
+    for m in clas["instance_attributes"]:
         write_attribute(md_file, m, options, clas)    
 
 def write_module(
@@ -351,27 +358,25 @@ def write_module(
     except ModuleNotFoundError as error:
         raise ModuleNotFoundError(str(error) + " in " + module_import)
 
-    clas = [
-        create_class(n, o, options)
-        for n, o in inspect.getmembers(module, inspect.isclass)
-    ]
-    funs = [
-        create_fun(n, o, options)
-        for n, o in inspect.getmembers(module, inspect.isfunction)
-    ]
+    clas  = [create_class(n, o, options)
+            for n, o in inspect.getmembers(module, inspect.isclass)]
+    funs  = [create_fun(n, o, options)
+            for n, o in inspect.getmembers(module, inspect.isfunction)]
+    gvars = [create_var(n, o, options)
+            for n, o in __get_import_vars(module)]
 
     if not os.path.isdir(os.path.dirname(path_to_md)):
         os.makedirs(os.path.dirname(path_to_md))
     md_file = open(path_to_md, "w")
-
     for c in clas:
         write_class(md_file, c, options)
         md_file.writelines("""\n______\n\n""")
-
     for f in funs:
         write_function(md_file, f, options)
         md_file.writelines("""\n______\n\n""")
-
+    for v in gvars:
+        write_attribute(md_file, v, options)
+        md_file.writelines("""\n______\n\n""")
     md_file.close()
 
 
