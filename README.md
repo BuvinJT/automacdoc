@@ -27,15 +27,16 @@ With pip pardi : `pip install automacdoc`
   - Easy steps:
     - Install automacdoc.
     - Open a terminal and change to the project directory. Example: `cd automacdoc`
-    - Run automacdoc. Example: `automacdoc example/src example`
+    - Run automacdoc. Example: `automacdoc example/src example -d -c -s`
     
   - Full command line argument details:
 
->     ---| AutoMacDoc |---
->     Usage: automacdoc [-d/-i] source destination [-c] [-s]
->     -d: directory scan mode (default) / -i: import scan mode
->     -c: include source code option
->     -s: serve site option
+> | AutoMacDoc |
+> Generates MkDoc website from Python source code
+> Usage: automacdoc source destination [-d/-i] [-c] [-s]
+> -d: directory scan mode (default) / -i: import scan mode
+> -c: include source code
+> -s: serve site option
  
 ## How does this work?
 AutoMacDoc analyzes your Python source and generates both markdown, and markup, documentation from it!
