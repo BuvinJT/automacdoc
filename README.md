@@ -74,9 +74,17 @@ This mode may be most easily understood by looking at an example file provided.
 
 ```py3
 # DOCS >> Mini.md
-from .functions import mini
+from .functions import mini, MIN_SIZE
+# DOCS >> NULL
+from os import abc 
 # DOCS >> Shark.md
 from .class_and_function import Shark, maxi
+# DOCS >> NULL
+from os import chdir
+# DOCS >> Config Parser.md
+""" DOCS >> VIRTUAL
+from configparser import ConfigParser
+""" 
 ```
 
 This `__init__` file naturally controls what is accessible via the Python 
@@ -92,12 +100,29 @@ included in the resulting file may come from *any* importable module / package
 on your system.  That does not have to be limited to only the source within a 
 fixed directory.
 
-In a similiar manner to how the import tracing works when processing the code,
+In a similar manner to how the import tracing works when processing the code,
 the command line argument passed for the "source" may simply be the name of an 
 import.  That argument does not have to be the path to its source directory, 
 when using this mode. Therefore, after "pip installing" any library (including
 from remote or *local* sources), you could follow that up by running automacdoc 
 against it by import name.     
+
+**Other magic comments** 
+
+`# DOCS >> NULL`
+
+Discards the documentation for whatever source code follows. 
+
+```py3
+""" DOCS >> VIRTUAL
+is_virtual_code_cool = True
+"""
+````
+
+Processes the documentation as though the virtual code were actually present,
+but without it having to truly be executed and included in your project.
+This provides a means to create documentation in a completely open ended manner
+that is is not tightly bound to the literal source.   
 
 ## Minimal project layout
 

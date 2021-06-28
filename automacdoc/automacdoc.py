@@ -8,11 +8,17 @@ import platform
 import glob
 import traceback
 import operator 
+import tempfile
+import subprocess
+import shutil
 # ----------------
  
 DIR_SCAN_MODE, IMPORT_SCAN_MODE = range(2)
 
 MAGIC_DOCNAME_COMMENT='# DOCS >>'
+MAGIC_DOCNAME_NULL='NULL'
+MAGIC_VIRTUAL_COMMENT='""" DOCS >> VIRTUAL'
+MAGIC_VIRTUAL_COMMENT_END='"""'
 
 # TODO: define this function correctly
 def __markdown_safe(obj): 
@@ -211,10 +217,20 @@ def create_class(name: str, obj, options: dict):
 class_name_md = (
     "## **{0}**`#!py3 class` {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name
-method_name_md = (
+static_method_name_md = (
     "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
 )  # class, name, args
-attribute_name_md = ( 
+object_method_name_md = (
+    "### *obj*.**{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, args
+static_attribute_name_md = ( 
+    "### *{0}*.**{1}** *{2}* {{ #{1} data-toc-label={1} }}\n\n".format
+)  # class, name, type
+object_attribute_name_md = ( 
+    "### *obj*.**{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, type
+
+var_md = ( 
     "### **{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, type
 all_vars_md= (
@@ -232,7 +248,25 @@ source_md = (
     format
 )  # source
 
-def write_attribute(md_file, att, options, clas=None):
+def write_variable(md_file, var, options):
+    """
+    Add the documentation of a function to a markdown file
+
+    **Parameters**
+    > **md_file:** `file` -- file object of the markdown file
+    > **att:** `dict` -- attribute information organized as a dict (see `create_att`)
+    > **options:** `dict` -- extended options
+
+    """
+    if var is None:
+        return
+
+    md_file.writelines(var_md(var["name"],var["type"])) 
+    #md_file.writelines(doc_md(var["doc"]))
+    #if options.get("is_source_shown",False):
+    #    md_file.writelines(source_md(var["source"]))    
+
+def write_attribute(md_file, att, is_static, options, clas=None):
     """
     Add the documentation of a function to a markdown file
 
@@ -245,7 +279,11 @@ def write_attribute(md_file, att, options, clas=None):
     if att is None:
         return
 
-    md_file.writelines(attribute_name_md(att["name"],att["type"])) 
+    md_file.writelines(
+        static_attribute_name_md(clas["name"],att["name"],att["type"])
+        if is_static else
+        object_attribute_name_md(att["name"],att["type"])
+    ) 
     #md_file.writelines(doc_md(att["doc"]))
     #if options.get("is_source_shown",False):
     #    md_file.writelines(source_md(att["source"]))    
@@ -271,7 +309,7 @@ def write_function(md_file, fun, options):
     if options.get("is_source_shown",False): 
         md_file.writelines(source_md(fun["source"]))
 
-def write_method(md_file, method, clas, options):
+def write_method(md_file, method, clas, is_static, options):
     """
     Add the documentation of a method to a markdown file
 
@@ -285,7 +323,9 @@ def write_method(md_file, method, clas, options):
         return
 
     md_file.writelines(
-        method_name_md(clas["name"], method["name"], method["args"])
+        static_method_name_md(clas["name"], method["name"], method["args"])
+        if is_static else
+        object_method_name_md(method["name"], method["args"])
     )
     md_file.writelines(doc_md(method["doc"]))
     if options.get("is_source_shown",False):
@@ -304,33 +344,33 @@ def write_class(md_file, clas, options):
     md_file.writelines(class_name_md(clas["name"]))
     md_file.writelines(doc_md(clas["doc"]))
 
-    if len(clas["class_attributes"]):
-        md_file.writelines("\n**class/static attributes:** \n\n")
+    if len(clas["class_attributes"]) > 0:
+        md_file.writelines("\n**Class/Static Attributes:** \n\n")
         for m in clas["class_attributes"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
     if len(clas["class_methods"]) > 0:
-        md_file.writelines("\n**class/static methods:** \n\n")
+        md_file.writelines("\n**Class/Static Methods:** \n\n")
         for f in clas["class_methods"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(f["name"]))
-    if len(clas["instance_methods"]):
-        md_file.writelines("\n**Instance methods:** \n\n")
+    if len(clas["instance_methods"]) > 0:
+        md_file.writelines("\n**Instance Methods:** \n\n")
         for m in clas["instance_methods"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
-    if len(clas["instance_attributes"]):
-        md_file.writelines("\n**Instance attributes:** \n\n")
+    if len(clas["instance_attributes"]) > 0:
+        md_file.writelines("\n**Instance Attributes:** \n\n")
         for m in clas["instance_attributes"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
 
     md_file.writelines("\n")
 
     for m in clas["class_attributes"]:
-        write_attribute(md_file, m, options, clas)    
+        write_attribute(md_file, m, True, options, clas)    
     for f in clas["class_methods"]:
-        write_method( md_file, f, clas, options )  
+        write_method( md_file, f, clas, True, options)  
     for m in clas["instance_methods"]:
-        write_method(md_file, m, clas, options)    
+        write_method(md_file, m, clas, False, options)    
     for m in clas["instance_attributes"]:
-        write_attribute(md_file, m, options, clas)    
+        write_attribute(md_file, m, False, options, clas)    
 
 def write_module(
     path_to_home: str,
@@ -375,7 +415,7 @@ def write_module(
         write_function(md_file, f, options)
         md_file.writelines("""\n______\n\n""")
     for v in gvars:
-        write_attribute(md_file, v, options)
+        write_variable(md_file, v, options)
         md_file.writelines("""\n______\n\n""")
     md_file.close()
 
@@ -441,15 +481,25 @@ This website contains the documentation for the wonderful project {0}
     indexmd_file.writelines(content)
     indexmd_file.close()
 
-def __get_module_path( module_name: str ):
+def __get_module_path( module_name: str, is_extern_mem_space=False ):
     """
     Attempt to import the module/package simply by name.
     If that import fails, check if this package is found on a path 
     relative to the working directory, otherwise raise an exception.
     """
     try:  
-        exec( "import %s" % (module_name,) )
-        return eval( "inspect.getfile( %s )" % (module_name,) )
+        if is_extern_mem_space:
+            from sys import executable as py_path
+            script=("import inspect; import {0}; print(inspect.getfile({0}));"
+                    .format(module_name))
+            #print(subprocess.list2cmdline([py_path,'-c',script]))
+            path = subprocess.check_output([py_path,'-c',script]).strip().decode('utf-8')
+            #print("path",path)
+            if os.path.isfile(path): return path
+            raise Exception() 
+        else:
+            exec( "import %s" % (module_name,) )
+            return eval( "inspect.getfile( %s )" % (module_name,) )
     except Exception as error:
         path = os.path.join(os.path.abspath(module_name),'__init__.py')
         if os.path.isfile(path): return path
@@ -466,37 +516,49 @@ def __get_import_module( module_name: str ):
     try:    return __get_import_by_name( module_name, is_silent=True )
     except: return __get_import_by_path( __get_module_path( module_name ) )
    
-def __get_import_by_name( name: str, is_silent=False ):        
-    try: return importlib.import_module( name )
+def __get_import_by_name( name: str, is_silent=False, is_refresh=False ):            
+    try: 
+        if is_refresh:
+            sys.modules.pop(name,None)
+            importlib.invalidate_caches()         
+        return importlib.import_module(name)
     except Exception as error:
         if not is_silent:
             print("ERROR: cannot acquire module: %s" % (name,) )
         raise error
 
-def __get_import_by_path( path: str, is_silent=False ):
+def __get_import_by_path( path: str, other_paths: list=None, 
+                          is_silent=False, is_refresh=False  ):
     package_name = os.path.splitext(os.path.basename(path))[0]
     if package_name=='__init__':
         path = os.path.dirname(path)
         package_name = os.path.basename(path)
         path = os.path.dirname(path)        
-    sys.path.insert(0, path)
-    try: return importlib.import_module( package_name )
+    paths=[path]+(other_paths if other_paths else [])
+    [sys.path.insert(0, p) for p in reversed(paths)]
+    try:
+        if is_refresh:
+            sys.modules.pop(package_name,None)
+            importlib.invalidate_caches() 
+        return importlib.import_module(package_name)
     except Exception as error:
         if not is_silent:
             print("ERROR: cannot acquire module: %s from %s" % 
                   (package_name,path) )
         raise error
-    finally: sys.path.remove(path)
+    finally: [sys.path.remove(p) for p in paths]
     
 def __get_source_path( module, member_name ):
     for n, o in inspect.getmembers( module ):
         if n==member_name: 
             try: return inspect.getmodule(o).__file__
-            except: 
-                default = module.__file__                
-                #print("Warning: cannot get source path for: %s fall back: %s" % 
-                #      (member_name,default))
-                return default
+            except: return module.__file__                
+                
+def __get_all_names( module ):     
+    class_names=[ n for n,_ in inspect.getmembers(module, inspect.isclass) ] 
+    func_names=[ n for n,_ in inspect.getmembers(module, inspect.isfunction) ]
+    var_names=[ n for n,_ in __get_import_vars( module ) ]
+    return class_names, func_names, var_names
 
 def __get_import_class_names( module ): 
     return [n for n,_ in inspect.getmembers(module, inspect.isclass)]
@@ -586,20 +648,32 @@ def __write_var( md_file, module_path: str, var_name: str, options ):
         module = __get_import_by_path( module_path )
         var = __get_import_var( module, var_name, options )        
         if var:
-            write_attribute(md_file, var, options)
+            write_variable(md_file, var, options)
             md_file.writelines("""\n______\n\n""")
     except: 
         print("Warning: failed to write definition of variable %s from %s" % 
               (var_name, module_path))
         traceback.print_exc()
-        
-def __parseSnippetIdentifiers( module_name, magic_init_path, source_lines ):   
 
-    def __get_all_names( module ):     
-        class_names=[ n for n,_ in inspect.getmembers(module, inspect.isclass) ] 
-        func_names=[ n for n,_ in inspect.getmembers(module, inspect.isfunction) ]
-        var_names=[ n for n,_ in __get_import_vars( module ) ]
-        return class_names, func_names, var_names
+# process "magic virtual code comments"
+def _to_virtual_lines(lines):     
+    is_virtual_mode=False
+    v_lines=[]
+    for line in lines:
+        clean_line = line.strip()
+        if clean_line.startswith( MAGIC_VIRTUAL_COMMENT ):
+            #print("MAGIC_VIRTUAL_COMMENT")
+            is_virtual_mode=True
+            continue
+        if is_virtual_mode and clean_line.startswith( 
+            MAGIC_VIRTUAL_COMMENT_END ):
+            #print("MAGIC_VIRTUAL_COMMENT_END")
+            is_virtual_mode=False
+            continue                
+        v_lines.append(line)
+    return v_lines
+        
+def __parseSnippetIdentifiers( module, all_names, package_path, snippet_lines ):   
     
     def __get_identifier_names( ast_root_node ):        
         parsed_imports=[]    
@@ -617,24 +691,24 @@ def __parseSnippetIdentifiers( module_name, magic_init_path, source_lines ):
                                         
         return parsed_imports               
 
-    # get all the identifiers, categorized, but not filtered
-    module = __get_import_module( module_name )      
-    class_names, func_names, var_names = __get_all_names( module )    
-    #print( "all_names", class_names, func_names, var_names )
-    
     # get the identifiers which are only found in the code snippet 
-    package_path = os.path.dirname( magic_init_path )
-    sys.path.insert(0, package_path)
-    try: ast_root_node = ast.parse( '\n'.join(source_lines) )    
+    sys.path.insert(0, package_path)                    
+    snippet_lines  = _to_virtual_lines(snippet_lines)
+    snippet_source = '\n'.join(snippet_lines)                    
+    try: ast_root_node = ast.parse( snippet_source )    
     except Exception as error:
-        print("[-]Warning: failed to parse source snippet from %s" % 
-               (magic_init_path,), error)
+        print("[-]Warning: failed to parse source snippet from package %s" % 
+               (package_path,), error)
+        traceback.print_exc()
+        sys.path.remove(package_path)
         return None
-    #finally: sys.path.remove(package_path)
-    snippet_identifier_names = __get_identifier_names( ast_root_node )    
-    #print( "snippet_identifier_names", snippet_identifier_names )
+    #finally: sys.path.remove(package_path) # break things down stream...
     
+    snippet_identifier_names = __get_identifier_names( ast_root_node )    
+    #print( "snippet identifiers", snippet_identifier_names )
+        
     # filter the complete lists against the subset of names from the snippet 
+    class_names, func_names, var_names = all_names
     class_names = [n for n in class_names if n in snippet_identifier_names]
     func_names  = [n for n in func_names  if n in snippet_identifier_names]
     var_names   = [n for n in var_names   if n in snippet_identifier_names]
@@ -656,6 +730,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
     doc_path = os.path.join(os.path.abspath(mainfolder), "docs")
     if not os.path.isdir(doc_path): os.makedirs(doc_path)
     toc = ""
+    lines = []
     
     mode=options.get("mode",DIR_SCAN_MODE)
     if mode==IMPORT_SCAN_MODE: 
@@ -665,7 +740,8 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             os.chdir(path_head)              
         else: orginal_wrkdir = None    
         package_name = path_tail
-        magic_init_path = __get_module_path( package_name ) 
+        magic_init_path = __get_module_path( 
+            package_name, is_extern_mem_space=True ) 
         #print( "package init_path", magic_init_path )                    
         # Build this raw "markdown map" first via "magic comments"   
         mdMap={} # { markdown_file_path : source_lines }    
@@ -676,10 +752,23 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             raise error        
         lines = init_content.split('\n')
         mdfile_name = None        
-        if MAGIC_DOCNAME_COMMENT in init_content:
+        is_virtual_mode=False
+        if MAGIC_DOCNAME_COMMENT in init_content:            
+            is_virtual_rev=False
             source_lines=[]
             for line in lines:
-                if line.strip().startswith( MAGIC_DOCNAME_COMMENT ):
+                clean_line = line.strip()
+                if clean_line.startswith( MAGIC_VIRTUAL_COMMENT ):
+                    #print("PARSE MAGIC_VIRTUAL_COMMENT")
+                    is_virtual_mode=True
+                    is_virtual_rev=True
+                    continue
+                if is_virtual_rev and clean_line.startswith( 
+                    MAGIC_VIRTUAL_COMMENT_END ):
+                    #print("PARSE MAGIC_VIRTUAL_COMMENT_END")
+                    is_virtual_rev=False
+                    continue                
+                if clean_line.startswith( MAGIC_DOCNAME_COMMENT ):
                     try: 
                         input_name=line.split( MAGIC_DOCNAME_COMMENT )[1].strip()
                     except Exception as error: 
@@ -698,21 +787,50 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                 mdMap[mdfile_name].extend(source_lines)
         else:                
             mdfile_name = "%s.md" % (package_name,) 
-            mdMap[mdfile_name]=lines
+            mdMap[mdfile_name]=lines  
+                  
+        package_path = os.path.dirname( magic_init_path )                  
         
+        # Process "magic virtual code comments"
+        # if there is virtual code, use a temp copy of the package, with that code 
+        # enabled, and import it by path directly
+        # otherwise, use the abstracted method to find the import naturally    
+        if is_virtual_mode:
+            #print( "virtual magic init!" )                
+            tmp_dir_path = tempfile.mkdtemp()
+            tmp_pkg_path = os.path.join(tmp_dir_path,package_name)
+            shutil.copytree(package_path,tmp_pkg_path)
+            tmp_file_path = os.path.join(tmp_pkg_path,'__init__.py')                    
+            virtual_source = '\n'.join(_to_virtual_lines(lines))
+            with open( tmp_file_path, 'w' ) as f: f.write( virtual_source )
+            if not orginal_wrkdir: orginal_wrkdir = os.path.abspath(os.curdir)
+            os.chdir(tmp_dir_path)   
+            magic_init_path = tmp_file_path
+
+        # get a module object and all its identifiers, categorized, but not filtered
+        module =(__get_import_by_path(magic_init_path) if is_virtual_mode else          
+                 __get_import_module(package_name))        
+        all_names = __get_all_names( module )    
+        #print("module", module.__file__)
+        #print("all_names", all_names)
+            
         # Process the "markdown map", generating the requested docs
         #print( "mdMap", mdMap )    
         for mdfile_name in mdMap: 
-            source_lines=mdMap[mdfile_name]
+            
+            if mdfile_name==MAGIC_DOCNAME_NULL: continue
+            snippet_lines = mdMap[mdfile_name]
             parsed = __parseSnippetIdentifiers( 
-                package_name, magic_init_path, source_lines )
+                module, all_names, package_path, snippet_lines )
             #print( "parsed", parsed )
-            if not parsed: continue                           
+            if not parsed: continue   
+            class_info, func_info, var_info = parsed
+            #print( class_info, func_info, var_info )
+            
+            # Write the file                        
             mdfile_path = os.path.join(doc_path, mdfile_name)    
             md_file = open( mdfile_path, "w")   
             #print("Writing document: %s" % (mdfile_name,))  
-            class_info, func_info, var_info = parsed
-            #print( class_info, func_info, var_info )       # (path)
             for name in class_info: 
                 __write_class(md_file, class_info[name], name, options)
             if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
@@ -724,9 +842,13 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                 __write_var(md_file, var_info[name], name, options)                           
             md_file.close()    
             try: toc += get_toc_lines_from_file_path(mdfile_name)
-            except Exception as error: print("[-]Warning ", error)   
-        # restore working directory if it were changed
+            except Exception as error: 
+                print("[-]Warning ", error)
+                traceback.print_exc()   
+
+        # restore working directory and clean up temp files
         if orginal_wrkdir: os.chdir(orginal_wrkdir)
+        if is_virtual_mode: shutil.rmtree(tmp_dir_path)                
     else:         
         code_path = os.path.abspath(src)
         package_name = code_path.split("/")[-1]
