@@ -4,7 +4,7 @@ import sys
 from subprocess import call, Popen
 import webbrowser
 import traceback
-from automacdoc import write_doc, DIR_SCAN_MODE, IMPORT_SCAN_MODE
+from automacdoc import write_doc, RAW_MODE, MAGIC_MODE
 
 def main(argv=None):
     args = __parse_args(sys.argv if argv is None else argv)
@@ -26,17 +26,17 @@ def main(argv=None):
 def __parse_args(argv):
     # Note argparse wasn't employed simply to avoid that dependency...
     HELP_SWITCHES      = ["-h","--help","/?"]
-    DIR_SCAN_SWITCH    = "-d"     
-    IMPORT_SCAN_SWITCH = "-i"
+    MAGIC_SWITCH       = "-m"
+    RAW_SWITCH         = "-r"     
     SOURCE_SWITCH      = "-c"
     SERVE_SWITCH       = "-s"
     TITLE = "| AutoMacDoc |"
     DESCR = "This utility generates MkDocs websites from Python source code."
     USAGE =("Usage: automacdoc source destination [{0}/{1}] [{2}] [{3}]\n"
-            "{0}: directory scan mode (default) / {1}: import scan mode\n"
+            "{0}: magic mode (default) / {1}: raw mode\n"
             "{2}: include source code\n"
-            "{3}: serve site option\n").format( 
-            DIR_SCAN_SWITCH, IMPORT_SCAN_SWITCH, SOURCE_SWITCH, SERVE_SWITCH)
+            "{3}: serve test site\n").format( 
+            MAGIC_SWITCH, RAW_SWITCH, SOURCE_SWITCH, SERVE_SWITCH)
  
     argv = sys.argv if argv is None else argv
     arg_count = len(argv)-1
@@ -56,12 +56,11 @@ def __parse_args(argv):
     src      = argv[1] 
     dest     = argv[2]   
     is_serve = SERVE_SWITCH in switches
-    mode     = (IMPORT_SCAN_MODE if IMPORT_SCAN_SWITCH in switches 
-                else DIR_SCAN_MODE)
+    mode     = MAGIC_MODE if MAGIC_SWITCH in switches else RAW_MODE
     options  = {
           "mode": mode
         , "is_source_shown": SOURCE_SWITCH in switches
-        , "ignore_prefix": '_' if mode==IMPORT_SCAN_MODE else None         
+        , "ignore_prefix": '_' if mode==MAGIC_MODE else None         
         }
     return src, dest, is_serve, options 
      

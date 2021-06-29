@@ -13,16 +13,12 @@ import subprocess
 import shutil
 # ----------------
  
-DIR_SCAN_MODE, IMPORT_SCAN_MODE = range(2)
+RAW_MODE, MAGIC_MODE = range(2)
 
-MAGIC_DOCNAME_COMMENT='# DOCS >>'
-MAGIC_DOCNAME_NULL='NULL'
-MAGIC_VIRTUAL_COMMENT='""" DOCS >> VIRTUAL'
+MAGIC_START_DOC_COMMENT='# DOCS >'
+MAGIC_NULL='NULL'
+MAGIC_VIRTUAL_COMMENT='""" DOCS > VIRTUAL'
 MAGIC_VIRTUAL_COMMENT_END='"""'
-
-# TODO: define this function correctly
-def __markdown_safe(obj): 
-    return str(obj).replace('<','').replace('>','')
 
 def rm_docstring_from_source(source):
     """
@@ -500,11 +496,11 @@ def __get_module_path( module_name: str, is_extern_mem_space=False ):
         else:
             exec( "import %s" % (module_name,) )
             return eval( "inspect.getfile( %s )" % (module_name,) )
-    except Exception as error:
+    except Exception as e:
         path = os.path.join(os.path.abspath(module_name),'__init__.py')
         if os.path.isfile(path): return path
-        print("ERROR: cannot resolve path for module %s" % (module_name,) )
-        raise error    
+        __on_err_exc("cannot resolve path for module %s" % 
+                     (module_name,), e)    
      
 def __get_import_module( module_name: str ):
     """
@@ -522,11 +518,10 @@ def __get_import_by_name( name: str, is_silent=False, is_refresh=False ):
             sys.modules.pop(name,None)
             importlib.invalidate_caches()         
         return importlib.import_module(name)
-    except Exception as error:
-        if not is_silent:
-            print("ERROR: cannot acquire module: %s" % (name,) )
-        raise error
-
+    except Exception as e:
+        __on_err_exc("cannot acquire module: %s" % (name,), 
+                     e, is_silent=is_silent)
+                     
 def __get_import_by_path( path: str, other_paths: list=None, 
                           is_silent=False, is_refresh=False  ):
     package_name = os.path.splitext(os.path.basename(path))[0]
@@ -541,11 +536,9 @@ def __get_import_by_path( path: str, other_paths: list=None,
             sys.modules.pop(package_name,None)
             importlib.invalidate_caches() 
         return importlib.import_module(package_name)
-    except Exception as error:
-        if not is_silent:
-            print("ERROR: cannot acquire module: %s from %s" % 
-                  (package_name,path) )
-        raise error
+    except Exception as e:
+        __on_err_exc("cannot acquire module: %s from %s" % 
+                     (package_name,path), e)
     finally: [sys.path.remove(p) for p in paths]
     
 def __get_source_path( module, member_name ):
@@ -626,10 +619,9 @@ def __write_class( md_file, module_path: str, class_name: str, options ):
         if clas:
             write_class(md_file, clas, options)
             md_file.writelines("""\n______\n\n""")
-    except: 
-        print("Warning: failed to write definition of class %s from %s" % 
-              (class_name, module_path))
-        traceback.print_exc()
+    except Exception as e:  
+        __on_warn_exc("failed to write definition of class %s from %s" % 
+                      (class_name, module_path), e)
        
 def __write_func( md_file, module_path: str, func_name: str, options ):
     try:
@@ -638,10 +630,9 @@ def __write_func( md_file, module_path: str, func_name: str, options ):
         if func:
             write_function(md_file, func, options)
             md_file.writelines("""\n______\n\n""")
-    except: 
-        print("Warning: failed to write definition of function %s from %s" % 
-              (func_name, module_path))
-        traceback.print_exc()
+    except Exception as e: 
+        __on_warn_exc("failed to write definition of function %s from %s" % 
+                      (func_name, module_path), e)
 
 def __write_var( md_file, module_path: str, var_name: str, options ):
     try:
@@ -650,10 +641,9 @@ def __write_var( md_file, module_path: str, var_name: str, options ):
         if var:
             write_variable(md_file, var, options)
             md_file.writelines("""\n______\n\n""")
-    except: 
-        print("Warning: failed to write definition of variable %s from %s" % 
-              (var_name, module_path))
-        traceback.print_exc()
+    except Exception as e: 
+        __on_warn_exc("failed to write definition of variable %s from %s" % 
+                      (var_name, module_path), e)
 
 # process "magic virtual code comments"
 def _to_virtual_lines(lines):     
@@ -673,7 +663,7 @@ def _to_virtual_lines(lines):
         v_lines.append(line)
     return v_lines
         
-def __parseSnippetIdentifiers( module, all_names, package_path, snippet_lines ):   
+def __parseSyntaxForNames( module, all_names, package_path, snippet_lines ):   
     
     def __get_identifier_names( ast_root_node ):        
         parsed_imports=[]    
@@ -696,10 +686,9 @@ def __parseSnippetIdentifiers( module, all_names, package_path, snippet_lines ):
     snippet_lines  = _to_virtual_lines(snippet_lines)
     snippet_source = '\n'.join(snippet_lines)                    
     try: ast_root_node = ast.parse( snippet_source )    
-    except Exception as error:
-        print("[-]Warning: failed to parse source snippet from package %s" % 
-               (package_path,), error)
-        traceback.print_exc()
+    except Exception as e: 
+        __on_warn_exc("failed to parse source snippet from package %s" % 
+                      (package_path,), e)
         sys.path.remove(package_path)
         return None
     #finally: sys.path.remove(package_path) # break things down stream...
@@ -732,8 +721,8 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
     toc = ""
     lines = []
     
-    mode=options.get("mode",DIR_SCAN_MODE)
-    if mode==IMPORT_SCAN_MODE: 
+    mode=options.get("mode",MAGIC_MODE)
+    if mode==MAGIC_MODE: 
         path_head,path_tail=os.path.split( src )
         if len(path_head) > 0:
             orginal_wrkdir = os.path.abspath(os.curdir)
@@ -747,13 +736,12 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
         mdMap={} # { markdown_file_path : source_lines }    
         try: 
             with open( magic_init_path, 'r' ) as f: init_content=f.read()
-        except Exception as error: 
-            print("ERROR: cannot read from path: %s" % (magic_init_path,))
-            raise error        
+        except Exception as e:
+            __on_err_exc("cannot read from path: %s" % (magic_init_path,), e)
         lines = init_content.split('\n')
         mdfile_name = None        
         is_virtual_mode=False
-        if MAGIC_DOCNAME_COMMENT in init_content:            
+        if MAGIC_START_DOC_COMMENT in init_content:            
             is_virtual_rev=False
             source_lines=[]
             for line in lines:
@@ -768,13 +756,13 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                     #print("PARSE MAGIC_VIRTUAL_COMMENT_END")
                     is_virtual_rev=False
                     continue                
-                if clean_line.startswith( MAGIC_DOCNAME_COMMENT ):
+                if clean_line.startswith( MAGIC_START_DOC_COMMENT ):
                     try: 
-                        input_name=line.split( MAGIC_DOCNAME_COMMENT )[1].strip()
-                    except Exception as error: 
+                        input_name=line.split( MAGIC_START_DOC_COMMENT )[1].strip()
+                    except Exception as e: 
                         input_name=None
-                        print("[-]Error processing magic comment: %s" % 
-                              (line,), error)
+                        __on_warn_exc("processing magic comment: %s" % 
+                                      (line,), e)
                     if input_name != mdfile_name:                                                                                 
                         if mdfile_name:
                             mdMap[mdfile_name]=[]
@@ -813,14 +801,16 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
         all_names = __get_all_names( module )    
         #print("module", module.__file__)
         #print("all_names", all_names)
+        magic_mod_doc = inspect.getdoc(module) or ""
+        print(magic_mod_doc)    
             
         # Process the "markdown map", generating the requested docs
-        #print( "mdMap", mdMap )    
+        #print( "mdMap", mdMap )
         for mdfile_name in mdMap: 
             
-            if mdfile_name==MAGIC_DOCNAME_NULL: continue
+            if mdfile_name==MAGIC_NULL: continue
             snippet_lines = mdMap[mdfile_name]
-            parsed = __parseSnippetIdentifiers( 
+            parsed = __parseSyntaxForNames( 
                 module, all_names, package_path, snippet_lines )
             #print( "parsed", parsed )
             if not parsed: continue   
@@ -842,9 +832,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                 __write_var(md_file, var_info[name], name, options)                           
             md_file.close()    
             try: toc += get_toc_lines_from_file_path(mdfile_name)
-            except Exception as error: 
-                print("[-]Warning ", error)
-                traceback.print_exc()   
+            except Exception as e: __on_warn_exc(e) 
 
         # restore working directory and clean up temp files
         if orginal_wrkdir: os.chdir(orginal_wrkdir)
@@ -877,9 +865,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             try:
                 write_module(root_path, module_name, mdfile_path, options)
                 toc += get_toc_lines_from_file_path(mdfile_name)
-            except Exception as error:
-                print("[-]Warning ", error)
-                traceback.print_exc()
+            except Exception as e: __on_warn_exc(e)
 
     #print( "toc", toc )
     if len(toc) == 0:
@@ -900,3 +886,24 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
     if not os.path.isfile(index_path):
         write_indexmd(index_path, project_name)
     """
+
+# TODO: define this function correctly
+def __markdown_safe(obj): 
+    return str(obj).replace('<','').replace('>','')
+
+__warn_msg="[-]Warning: {0}"
+def __on_warn_exc(msg,e,is_silent=False):
+    if is_silent: return    
+    sys.stdout.write(__warn_msg.format(str(msg)))
+    sys.stdout.write(__warn_msg.format(str(e)))
+    sys.stdout.flush()
+    traceback.print_exc()   
+
+__err_msg="[-]ERROR: {0}"
+def __on_err_exc(msg,e,is_silent=False):
+    if not is_silent:     
+        sys.stderr.write(__err_msg.format(str(msg)))
+        sys.stderr.write(__err_msg.format(str(e)))
+        sys.stderr.flush()
+        traceback.print_exc()   
+    raise e

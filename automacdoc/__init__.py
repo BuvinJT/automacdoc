@@ -1,1 +1,1 @@
-from .automacdoc import write_doc, DIR_SCAN_MODE, IMPORT_SCAN_MODE
+from .automacdoc import write_doc, RAW_MODE, MAGIC_MODE 

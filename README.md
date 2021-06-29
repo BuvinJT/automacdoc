@@ -27,62 +27,54 @@ With pip pardi : `pip install automacdoc`
   - Easy steps:
     - Install automacdoc.
     - Open a terminal and change to the project directory. Example: `cd automacdoc`
-    - Run automacdoc. Example: `automacdoc example/src example -d -c -s`
+    - Run automacdoc. Example: `automacdoc example/src example -m -c -s`
     
   - Full command line argument details:
 
 ```
 | AutoMacDoc |
 This utility generates MkDocs websites from Python source code.
-Usage: automacdoc source destination [-d/-i] [-c] [-s]
--d: directory scan mode (default) / -i: import scan mode
+Usage: automacdoc source destination [-m/-r] [-c] [-s]
+-m: magic mode (default) / -r: raw mode
 -c: include source code
--s: serve site option
+-s: serve test site
 ```
  
 ## How does this work?
-AutoMacDoc analyzes your Python source and generates both markdown, and markup, documentation from it!
-It creates:
+AutoMacDoc analyzes your Python source and generates *markdown* files from them.
+It then employs MkDocs to produce html based documentation from the markdown!
+This process creates:
   - a 'mkdocs.yml' file, which is a config file for [MkDocs](https://mkdocs.org)
-  - a 'docs' folder which contains the markdown source for [MkDocs](https://mkdocs.org)
-  - a 'site' folder which contains the static site produced by [MkDocs](https://mkdocs.org)
-
-### Directory Scan Mode
-
-By default, AutoMacDoc runs in "Directory Scan Mode". Using this method for
-generating the documentation, the entire directory tree for the source path
-specified is recursively scanned and all elements of the source are indexed.
-The files produced have a direct one-to-one alignment of python package / module 
-to a sub directory / document (or site page).
-
-This is the most detailed, comprehensive style for indexing the exact source 
-found within that directory in a literal manner.    
+  - a 'docs' folder, which contains the markdown source processed by [MkDocs](https://mkdocs.org)
+  - a 'site' folder, which contains the static site produced 
  
-### Import Scan Mode
+### Magic Mode
   
-Alternatively, "Import Scan Mode" may be used to generate the documents in a
-more dynamic, filtered, and custom manner.  Rather than capturing an entire 
-code base, only the the elements explicitly included within a package
-`__init__` module will be indexed.  This aligns with how package / library
-imports work within a Python runtime context. In addition, when using this
-mode, "magic comments" will be processed if placed within an `__init__` module,
-to dictate how the markdown files / site pages should be named and divided.
+By default, "Magic Mode" is used to generate the documents in a dynamic, highly
+customizable manner.  Those objects which are available naturally via a package 
+import, within a Python runtime context, are the those which are documented.
+More specifically, the source elements which are explicitly included within 
+a given Python package's `__init__` module will be indexed by the parser
+/ inspector. 
+
+As a bonus, when using this mode, "magic comments" (included for this specific
+tool) will be processed if placed within an `__init__` module being scanned.
+This is used to dictate how the markdown files / site pages will be named, ordered, 
+and the content which they index.
 
 This mode may be most easily understood by looking at an example file provided.   
 
 **example/src/__init__.py**:
 
 ```py3
-# DOCS >> Mini.md
+# DOCS > Mini.md
 from .functions import mini, MIN_SIZE
-# DOCS >> NULL
-from os import abc 
-# DOCS >> Shark.md
+# DOCS > Shark.md
 from .class_and_function import Shark, maxi
-# DOCS >> NULL
-from os import chdir
-# DOCS >> Config Parser.md
-""" DOCS >> VIRTUAL
+# DOCS > NULL
+from os import abc 
+# DOCS > Config Parser.md
+""" DOCS > VIRTUAL
 from configparser import ConfigParser
 """ 
 ```
@@ -93,7 +85,9 @@ be found). Rather than importing the entire directory under "src", only the
 items defined in this file are imported by a Python interpreter. Likewise, that
 is all which is auto documented when running in this mode.  
 
-The comment lines shown which start with `# DOCS >>` indicate a starting point 
+**START WRITING**: `# DOCS >`
+
+The comment lines shown which start with this comment indicate a starting point 
 for what is to be written to a given markdown file. That file/page will be named 
 by what follows that comment prefix. Note that the source content indexed and 
 included in the resulting file may come from *any* importable module / package 
@@ -101,28 +95,40 @@ on your system.  That does not have to be limited to only the source within a
 fixed directory.
 
 In a similar manner to how the import tracing works when processing the code,
-the command line argument passed for the "source" may simply be the name of an 
-import.  That argument does not have to be the path to its source directory, 
+the command line argument passed for the "source" argument may simply be the 
+name of an import. That argument does not have to be the path to its directory, 
 when using this mode. Therefore, after "pip installing" any library (including
-from remote or *local* sources), you could follow that up by running automacdoc 
-against it by import name.     
+from remote or *local* sources), you could follow that up by running `automacdoc` 
+against it *by import name*!     
 
-**Other magic comments** 
-
-`# DOCS >> NULL`
+**DISCARD**: `# DOCS > NULL`
 
 Discards the documentation for whatever source code follows. 
 
+**VIRTUAL CODE**:
+
 ```py3
-""" DOCS >> VIRTUAL
+""" DOCS > VIRTUAL
 is_virtual_code_cool = True
 """
 ````
 
-Processes the documentation as though the virtual code were actually present,
+Following this comment pattern, will cause the parsing/inpsecting to occur 
+as though the virtual code were actually present,
 but without it having to truly be executed and included in your project.
 This provides a means to create documentation in a completely open ended manner
 that is is not tightly bound to the literal source.   
+
+### Raw Mode
+
+Alternatively, AutoMacDoc may be run in "Raw Mode". Pass the `-r` switch on the 
+command line for this. Using this method for generating the documentation, the 
+entire directory tree for a source path specified is recursively scanned and all 
+elements of the source indexed. The files produced have a direct one-to-one 
+alignment of python package / module to a sub directory / document (site page).
+
+This is the most detailed, comprehensive style for indexing the exact source 
+found within that Python code base in a literal manner.    
 
 ## Minimal project layout
 
