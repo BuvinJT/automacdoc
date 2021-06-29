@@ -15,10 +15,12 @@ import shutil
  
 RAW_MODE, MAGIC_MODE = range(2)
 
-MAGIC_START_DOC_COMMENT='# DOCS >'
-MAGIC_NULL='NULL'
-MAGIC_VIRTUAL_COMMENT='""" DOCS > VIRTUAL'
-MAGIC_VIRTUAL_COMMENT_END='"""'
+MAGIC_START_DOC_COMMENT   ='# DOCS >'
+MAGIC_TEXT_COMMENT_START  ='""" DOCS > TEXT'
+MAGIC_TEXT_COMMENT_END    ='"""'
+MAGIC_NULL                ='NULL'
+MAGIC_VIRTUAL_COMMENT     ='""" DOCS > VIRTUAL'
+MAGIC_VIRTUAL_COMMENT_END ='"""'
 
 def rm_docstring_from_source(source):
     """
@@ -647,18 +649,18 @@ def __write_var( md_file, module_path: str, var_name: str, options ):
 
 # process "magic virtual code comments"
 def _to_virtual_lines(lines):     
-    is_virtual_mode=False
+    is_virtual_line=False
     v_lines=[]
     for line in lines:
         clean_line = line.strip()
         if clean_line.startswith( MAGIC_VIRTUAL_COMMENT ):
             #print("MAGIC_VIRTUAL_COMMENT")
-            is_virtual_mode=True
+            is_virtual_line=True
             continue
-        if is_virtual_mode and clean_line.startswith( 
+        if is_virtual_line and clean_line.startswith( 
             MAGIC_VIRTUAL_COMMENT_END ):
             #print("MAGIC_VIRTUAL_COMMENT_END")
-            is_virtual_mode=False
+            is_virtual_line=False
             continue                
         v_lines.append(line)
     return v_lines
@@ -742,19 +744,19 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
         mdfile_name = None        
         is_virtual_mode=False
         if MAGIC_START_DOC_COMMENT in init_content:            
-            is_virtual_rev=False
+            is_virtual_line=False
             source_lines=[]
             for line in lines:
                 clean_line = line.strip()
                 if clean_line.startswith( MAGIC_VIRTUAL_COMMENT ):
                     #print("PARSE MAGIC_VIRTUAL_COMMENT")
                     is_virtual_mode=True
-                    is_virtual_rev=True
+                    is_virtual_line=True
                     continue
-                if is_virtual_rev and clean_line.startswith( 
+                if is_virtual_line and clean_line.startswith( 
                     MAGIC_VIRTUAL_COMMENT_END ):
                     #print("PARSE MAGIC_VIRTUAL_COMMENT_END")
-                    is_virtual_rev=False
+                    is_virtual_line=False
                     continue                
                 if clean_line.startswith( MAGIC_START_DOC_COMMENT ):
                     try: 
