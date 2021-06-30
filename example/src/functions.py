@@ -1,4 +1,4 @@
-import numpy as np
+#import numpy as np
 
 MIN_SIZE=-1
 _pro_min_size=-2
@@ -18,8 +18,8 @@ def mini(x, y):
 
     > `float` -- Description of returned object.
     """
-    return np.min(x, y)
-
+    #return np.min(x, y)
+    return y
 
 
 def mini2peutetre(x, y):
@@ -36,4 +36,5 @@ def mini2peutetre(x, y):
 
     > `float` -- Description of returned object.
     """
-    return np.min(x, y)
+    #return np.min(x, y)
+    return y

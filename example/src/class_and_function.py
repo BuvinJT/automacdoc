@@ -1,4 +1,4 @@
-import numpy as np
+#import numpy as np
 
 
 def maxi(x: int, y: int = 5):
@@ -15,7 +15,8 @@ def maxi(x: int, y: int = 5):
 
     > `float` -- Description of returned object.
     """
-    return np.max(x, y)
+    #return np.max(x, y)
+    return x
 
 
 def maxi2pourvoir(x, y):
@@ -32,8 +33,8 @@ def maxi2pourvoir(x, y):
 
     > `float` -- Description of returned object.
     """
-    return np.max(x, y)
-
+    #return np.max(x, y)
+    return x
 
 class Shark:
 

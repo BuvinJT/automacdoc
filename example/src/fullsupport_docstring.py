@@ -1,4 +1,4 @@
-import numpy as np
+#import numpy as np
 
 
 def fullsupport(x: float, y: float = 3):
@@ -68,8 +68,8 @@ def fullsupport(x: float, y: float = 3):
 
 
     """
-    return np.max(x, y)
-
+    #return np.max(x, y)
+    return x
 
 
 def test(x: int):

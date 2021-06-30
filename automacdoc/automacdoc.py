@@ -834,7 +834,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                 __write_var(md_file, var_info[name], name, options)                           
             md_file.close()    
             try: toc += get_toc_lines_from_file_path(mdfile_name)
-            except Exception as e: __on_warn_exc(e) 
+            except Exception as e: __on_warn_exc("TOC error",e) 
 
         # restore working directory and clean up temp files
         if orginal_wrkdir: os.chdir(orginal_wrkdir)
@@ -867,7 +867,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             try:
                 write_module(root_path, module_name, mdfile_path, options)
                 toc += get_toc_lines_from_file_path(mdfile_name)
-            except Exception as e: __on_warn_exc(e)
+            except Exception as e: __on_warn_exc("TOC error", e)
 
     #print( "toc", toc )
     if len(toc) == 0:
