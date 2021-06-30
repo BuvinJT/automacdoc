@@ -16,11 +16,12 @@ import shutil
 RAW_MODE, MAGIC_MODE = range(2)
 
 MAGIC_START_DOC_COMMENT   ='# DOCS >'
-MAGIC_TEXT_COMMENT_START  ='""" DOCS > TEXT'
+MAGIC_TEXT_COMMENT_START  ='""" DOCS : TEXT'
 MAGIC_TEXT_COMMENT_END    ='"""'
 MAGIC_NULL                ='NULL'
-MAGIC_VIRTUAL_COMMENT     ='""" DOCS > VIRTUAL'
+MAGIC_VIRTUAL_COMMENT     ='""" DOCS : VIRTUAL'
 MAGIC_VIRTUAL_COMMENT_END ='"""'
+TXT,SRC=range(2)
 
 def rm_docstring_from_source(source):
     """
@@ -665,7 +666,7 @@ def _to_virtual_lines(lines):
         v_lines.append(line)
     return v_lines
         
-def __parseSyntaxForNames( module, all_names, package_path, snippet_lines ):   
+def __parse_sec_for_names( module, all_names, package_path, snippet_lines ):   
     
     def __get_identifier_names( ast_root_node ):        
         parsed_imports=[]    
@@ -735,7 +736,8 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             package_name, is_extern_mem_space=True ) 
         #print( "package init_path", magic_init_path )                    
         # Build this raw "markdown map" first via "magic comments"   
-        mdMap={} # { markdown_file_path : source_lines }    
+        
+        mdMap={} # { markdown_path : [(TXT,text_lines),(SRC,source_lines),...] }            
         try: 
             with open( magic_init_path, 'r' ) as f: init_content=f.read()
         except Exception as e:
@@ -743,21 +745,33 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
         lines = init_content.split('\n')
         mdfile_name = None        
         is_virtual_mode=False
-        if MAGIC_START_DOC_COMMENT in init_content:            
-            is_virtual_line=False
+        if MAGIC_START_DOC_COMMENT in init_content:
+            is_virtual_line=False            
             source_lines=[]
+            text_lines=None            
             for line in lines:
                 clean_line = line.strip()
+                
                 if clean_line.startswith( MAGIC_VIRTUAL_COMMENT ):
-                    #print("PARSE MAGIC_VIRTUAL_COMMENT")
                     is_virtual_mode=True
                     is_virtual_line=True
                     continue
                 if is_virtual_line and clean_line.startswith( 
                     MAGIC_VIRTUAL_COMMENT_END ):
-                    #print("PARSE MAGIC_VIRTUAL_COMMENT_END")
                     is_virtual_line=False
                     continue                
+
+                if clean_line.startswith( MAGIC_TEXT_COMMENT_START ):
+                    text_lines=[]
+                    continue                                    
+                if text_lines is not None and clean_line.startswith( 
+                    MAGIC_TEXT_COMMENT_END ):
+                    try:    mdMap[mdfile_name]
+                    except: mdMap[mdfile_name]=[]                    
+                    mdMap[mdfile_name].append((TXT,text_lines))                    
+                    text_lines=None
+                    continue                                    
+                    
                 if clean_line.startswith( MAGIC_START_DOC_COMMENT ):
                     try: 
                         input_name=line.split( MAGIC_START_DOC_COMMENT )[1].strip()
@@ -767,14 +781,26 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                                       (line,), e)
                     if input_name != mdfile_name:                                                                                 
                         if mdfile_name:
-                            mdMap[mdfile_name]=[]
-                            mdMap[mdfile_name].extend(source_lines)
+                            try:    mdMap[mdfile_name]
+                            except: mdMap[mdfile_name]=[]
+                            if text_lines is not None:
+                                mdMap[mdfile_name].append((TXT,text_lines))
+                                text_lines = None
+                            if len(source_lines)>0:        
+                                mdMap[mdfile_name].append((SRC,source_lines))
                         mdfile_name=input_name
                         source_lines=[]                    
-                source_lines.append(line)                   
+                if text_lines is not None: text_lines.append(line)    
+                else: source_lines.append(line)          
+                         
             if mdfile_name:
-                mdMap[mdfile_name]=[]
-                mdMap[mdfile_name].extend(source_lines)
+                try:    mdMap[mdfile_name]
+                except: mdMap[mdfile_name]=[]
+                if text_lines is not None:
+                    mdMap[mdfile_name].append((TXT,text_lines))
+                    text_lines = None
+                if len(source_lines)>0:
+                    mdMap[mdfile_name].append((SRC,source_lines))
         else:                
             mdfile_name = "%s.md" % (package_name,) 
             mdMap[mdfile_name]=lines  
@@ -804,34 +830,44 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
         #print("module", module.__file__)
         #print("all_names", all_names)
         magic_mod_doc = inspect.getdoc(module) or ""
-        print(magic_mod_doc)    
+        #print(magic_mod_doc) # TODO: Where should this be written?    
             
         # Process the "markdown map", generating the requested docs
         #print( "mdMap", mdMap )
+        
         for mdfile_name in mdMap: 
             
             if mdfile_name==MAGIC_NULL: continue
-            snippet_lines = mdMap[mdfile_name]
-            parsed = __parseSyntaxForNames( 
-                module, all_names, package_path, snippet_lines )
-            #print( "parsed", parsed )
-            if not parsed: continue   
-            class_info, func_info, var_info = parsed
-            #print( class_info, func_info, var_info )
+
+            page_content = mdMap[mdfile_name]
+            if page_content is None: continue
             
-            # Write the file                        
             mdfile_path = os.path.join(doc_path, mdfile_name)    
             md_file = open( mdfile_path, "w")   
             #print("Writing document: %s" % (mdfile_name,))  
-            for name in class_info: 
-                __write_class(md_file, class_info[name], name, options)
-            if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
-            for name in func_info: 
-                __write_func(md_file, func_info[name], name, options)     
-            if len(var_info) > 0 and (len(func_info) > 0 or len(class_info) > 0): 
-                write_vars_header(md_file)
-            for name in var_info:  
-                __write_var(md_file, var_info[name], name, options)                           
+         
+            for page_section in page_content:
+                #print(page_section)
+                sec_type, sec_lines = page_section
+                if sec_type==TXT:
+                    md_file.write('\n'.join(sec_lines))
+                    md_file.write('\n')        
+                if sec_type==SRC:             
+                    parsed = __parse_sec_for_names( 
+                        module, all_names, package_path, sec_lines )
+                    #print( "parsed", parsed )
+                    if not parsed: continue   
+                    class_info, func_info, var_info = parsed
+                    #print( class_info, func_info, var_info )                
+                    for name in class_info: 
+                        __write_class(md_file, class_info[name], name, options)
+                    if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
+                    for name in func_info: 
+                        __write_func(md_file, func_info[name], name, options)     
+                    if len(var_info) > 0 and (len(func_info) > 0 or len(class_info) > 0): 
+                        write_vars_header(md_file)
+                    for name in var_info:  
+                        __write_var(md_file, var_info[name], name, options)                           
             md_file.close()    
             try: toc += get_toc_lines_from_file_path(mdfile_name)
             except Exception as e: __on_warn_exc("TOC error",e) 

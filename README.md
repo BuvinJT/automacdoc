@@ -74,7 +74,7 @@ from .class_and_function import Shark, maxi
 # DOCS > NULL
 from os import abc 
 # DOCS > Config Parser.md
-""" DOCS > VIRTUAL
+""" DOCS : VIRTUAL
 from configparser import ConfigParser
 """ 
 ```
