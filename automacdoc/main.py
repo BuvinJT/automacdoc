@@ -56,7 +56,7 @@ def __parse_args(argv):
     src      = argv[1] 
     dest     = argv[2]   
     is_serve = SERVE_SWITCH in switches
-    mode     = MAGIC_MODE if MAGIC_SWITCH in switches else RAW_MODE
+    mode     = RAW_MODE if RAW_SWITCH in switches else MAGIC_MODE  
     options  = {
           "mode": mode
         , "is_source_shown": SOURCE_SWITCH in switches
