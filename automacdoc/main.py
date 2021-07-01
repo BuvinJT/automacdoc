@@ -32,7 +32,8 @@ def __parse_args(argv):
     SERVE_SWITCH       = "-s"
     TITLE = "| AutoMacDoc |"
     DESCR = "This utility generates MkDocs websites from Python source code."
-    USAGE =("Usage: automacdoc source destination [{0}/{1}] [{2}] [{3}]\n"
+    USAGE =("Help:  automacdoc -h/--help\n" 
+            "Usage: automacdoc source destination [{0}/{1}] [{2}] [{3}]\n"
             "{0}: magic mode (default) / {1}: raw mode\n"
             "{2}: include source code\n"
             "{3}: serve test site\n").format( 

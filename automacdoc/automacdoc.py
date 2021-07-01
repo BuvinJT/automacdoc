@@ -558,10 +558,11 @@ def __get_source_path( module, member_name ):
             except: return module.__file__                
                 
 def __get_all_names( module ):     
-    class_names=[ n for n,_ in inspect.getmembers(module, inspect.isclass) ] 
-    func_names=[ n for n,_ in inspect.getmembers(module, inspect.isfunction) ]
-    var_names=[ n for n,_ in __get_import_vars( module ) ]
-    return class_names, func_names, var_names
+    mod_names   = [ n for n,_ in inspect.getmembers(module, inspect.ismodule) ]
+    class_names = [ n for n,_ in inspect.getmembers(module, inspect.isclass) ] 
+    func_names  = [ n for n,_ in inspect.getmembers(module, inspect.isfunction) ]
+    var_names   = [ n for n,_ in __get_import_vars( module ) ]
+    return mod_names, class_names, func_names, var_names
 
 def __get_import_class_names( module ): 
     return [n for n,_ in inspect.getmembers(module, inspect.isclass)]
@@ -621,6 +622,28 @@ def __get_import_vars( module ):
         if inspect.istraceback(o): continue
         import_vars.append((n,o))
     return import_vars
+
+def __write_mod( md_file, module_path: str, class_name: str, options ):
+    try:
+        module = __get_import_by_path( module_path )
+        clas  = [create_class(n, o, options)
+                for n, o in inspect.getmembers(module, inspect.isclass)]
+        funs  = [create_fun(n, o, options)
+                for n, o in inspect.getmembers(module, inspect.isfunction)]
+        gvars = [create_var(n, o, options)
+                for n, o in __get_import_vars(module)]
+        for c in clas:
+            write_class(md_file, c, options)
+            md_file.writelines("""\n______\n\n""")
+        for f in funs:
+            write_function(md_file, f, options)
+            md_file.writelines("""\n______\n\n""")
+        for v in gvars:
+            write_variable(md_file, v, options)
+            md_file.writelines("""\n______\n\n""")
+    except Exception as e:  
+        __on_warn_exc("failed to write definition of module %s from %s" % 
+                      (class_name, module_path), e)
        
 def __write_class( md_file, module_path: str, class_name: str, options ):
     try:
@@ -707,12 +730,15 @@ def __parse_sec_for_names( module, all_names, package_path, snippet_lines ):
     #print( "snippet identifiers", snippet_identifier_names )
         
     # filter the complete lists against the subset of names from the snippet 
-    class_names, func_names, var_names = all_names
+    mod_names, class_names, func_names, var_names = all_names
+    mod_names   = [n for n in mod_names   if n in snippet_identifier_names]
     class_names = [n for n in class_names if n in snippet_identifier_names]
     func_names  = [n for n in func_names  if n in snippet_identifier_names]
     var_names   = [n for n in var_names   if n in snippet_identifier_names]
 
     # get the source paths for the filtered down items being returned
+    mod_info={}
+    for n in mod_names:   mod_info[n]   = __get_source_path( module, n )
     class_info={}
     for n in class_names: class_info[n] = __get_source_path( module, n )
     func_info={}
@@ -720,7 +746,7 @@ def __parse_sec_for_names( module, all_names, package_path, snippet_lines ):
     var_info={}
     for n in var_names:   var_info[n]   = __get_source_path( module, n )
                             
-    return class_info, func_info, var_info
+    return mod_info, class_info, func_info, var_info
 
 def write_doc(src: str, mainfolder: str, options:dict=None ):    
     #print( "write_doc", src, mainfolder, options )
@@ -877,8 +903,10 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                         module, all_names, package_path, sec_lines )
                     #print( "parsed", parsed )
                     if not parsed: continue   
-                    class_info, func_info, var_info = parsed
-                    #print( class_info, func_info, var_info )                
+                    mod_info, class_info, func_info, var_info = parsed
+                    #print( mod_info, class_info, func_info, var_info )       
+                    for name in mod_info: 
+                        __write_mod(md_file, mod_info[name], name, options)                             
                     for name in class_info: 
                         __write_class(md_file, class_info[name], name, options)
                     if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)

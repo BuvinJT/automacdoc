@@ -8,21 +8,20 @@ It is, itself written in [Python](https://python.org).
 ## Why was this project created?
 
 [MkDocs](https://mkdocs.org) is an amazing tool to generate a website with 
-[Markdown](https://en.wikipedia.org/wiki/Markdown).
-Until now, however, there was no tool for *auto generating* a MkDocs project 
-from Python source.
+[Markdown](https://en.wikipedia.org/wiki/Markdown). Until now, however, there 
+was no tool for *auto generating* a MkDocs project from Python source.
 
-The Standard Library [pydoc](https://docs.python.org/3/library/pydoc.html) tool
-is the typical starting point when comparing Python documentation generators. 
+The typical starting point when comparing Python documentation generators, is
+the standard library's [pydoc](https://docs.python.org/3/library/pydoc.html) module. 
 While that tool is easy to use, it's not flexible, and the end result leaves 
-something to be desired. In contrast, many would consider the gold standard for
+something to be desired. In contrast, many would consider the "gold standard" for
 auto generating Python documentation to be [Sphinx](https://www.sphinx-doc.org/).
 But that tool is complicated, and uses **reStructuredText**.
 Too bad reStructuredText *sucks*, **MarkDown** *rocks*!
 
-As the ongoing work involved in documenting your code will end up revolving
+As the real work involved in documenting your code will end up revolving
 around writing [Doc Strings](https://www.python.org/dev/peps/pep-0257/) one way 
-or another, being able to express yourself in those tasks via Markdown will make
+or another, being able to express yourself in that context via Markdown will make
 you HAPPY for a long time to come!
 
 ## How do I install it?
@@ -35,17 +34,18 @@ you HAPPY for a long time to come!
     OR
     - 1 fresh `pip install`
     - (OPTIONAL) custom Docstrings and/or "magic comments" included in source (see below)
-
+ 
   - Easy steps:
     - Install automacdoc.
     - Open a terminal and change to the project directory. Example: `cd automacdoc`
     - Run automacdoc. Example: `automacdoc example/src example -r -c -s`
     
-  - Full command line argument details:
+Command line help:
 
 ```
 | AutoMacDoc |
 This utility generates MkDocs websites from Python source code.
+Help:  automacdoc -h/--help
 Usage: automacdoc source destination [-m/-r] [-c] [-s]
 -m: magic mode (default) / -r: raw mode
 -c: include source code
@@ -70,14 +70,14 @@ elements of the code indexed. The files produced have a direct one-to-one
 alignment of Python package / module to a sub directory / document 
 (i.e. site page).
 
-This is the most straight forward style for indexing the exact source 
+This is the most straightforward style for indexing the exact source 
 found within that Python code base in a literal manner.    
  
 ### Magic Mode
   
-Now that you've seen how easy it is to use the direct "Raw Mode",
-"Magic Mode" may be better understood in its contrast to it.   
-"Magic Mode" is used to generate the documents in a more dynamic,
+Now that you've seen how easy it is to use "Raw Mode", let's dive into "Magic Mode"!   
+
+"Magic Mode" is used to generate documentation sites in a more dynamic,
 customizable manner. The key difference between this mode vs. "Raw Mode", is that
 the method by which objects are indexed is "by import" rather than by "file path".
 This mode also provides the means to define the structure of the content produced

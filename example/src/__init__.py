@@ -22,6 +22,10 @@ This page is devoted to the **Shark**.
 from .class_and_function import Shark, maxi
 
 #------------------------------------------------------------------------------
+# docs > Doc Strings.md
+from . import fullsupport_docstring 
+
+#------------------------------------------------------------------------------
 # docs > null
 from os import abc 
 
