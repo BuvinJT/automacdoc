@@ -1,22 +1,32 @@
 """
-Introduction
+This library is very impressive... :)
 """
-# DOCS > Mini.md
-""" DOCS : TEXT
+# docs > Introduction.md
+# docs : __doc__ 
+
+#------------------------------------------------------------------------------
+# docs > Mini.md
+""" docs : prose
 Here is some preamble text for the page...  
 """
 from .functions import mini, MIN_SIZE
-""" DOCS : TEXT
+""" docs : prose
 Closing comments on these functions...  
 """
-# DOCS > Shark.md
-""" DOCS : TEXT
+
+#------------------------------------------------------------------------------
+# docs > Shark.md
+""" docs : prose
 This page is devoted to the **Shark**.  
 """
 from .class_and_function import Shark, maxi
-# DOCS > NULL
+
+#------------------------------------------------------------------------------
+# docs > null
 from os import abc 
-# DOCS > Config Parser.md
-""" DOCS : VIRTUAL
+
+#------------------------------------------------------------------------------
+# docs > Config Parser.md
+""" docs : virtual
 from configparser import ConfigParser
 """ 

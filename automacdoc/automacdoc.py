@@ -15,12 +15,19 @@ import shutil
  
 RAW_MODE, MAGIC_MODE = range(2)
 
-MAGIC_START_DOC_COMMENT   ='# DOCS >'
-MAGIC_TEXT_COMMENT_START  ='""" DOCS : TEXT'
-MAGIC_TEXT_COMMENT_END    ='"""'
-MAGIC_NULL                ='NULL'
-MAGIC_VIRTUAL_COMMENT     ='""" DOCS : VIRTUAL'
-MAGIC_VIRTUAL_COMMENT_END ='"""'
+
+MAGIC_START_DOC_COMMENT   = '# docs >'
+MAGIC_APPEND_DOC_COMMENT  = '# docs >>'
+
+MAGIC_PROSE_COMMENT_START  = '""" docs : prose'
+MAGIC_PROSE_COMMENT_END    = '"""'
+
+MAGIC_VIRTUAL_COMMENT_START = '""" docs : virtual'
+MAGIC_VIRTUAL_COMMENT_END   = '"""'
+
+MAGIC_NULL                = 'null'
+MAGIC_MODDOC_COMMENT      = '# docs : __doc__' 
+
 TXT,SRC=range(2)
 
 def rm_docstring_from_source(source):
@@ -654,7 +661,7 @@ def _to_virtual_lines(lines):
     v_lines=[]
     for line in lines:
         clean_line = line.strip()
-        if clean_line.startswith( MAGIC_VIRTUAL_COMMENT ):
+        if clean_line.startswith( MAGIC_VIRTUAL_COMMENT_START ):
             #print("MAGIC_VIRTUAL_COMMENT")
             is_virtual_line=True
             continue
@@ -752,7 +759,13 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             for line in lines:
                 clean_line = line.strip()
                 
-                if clean_line.startswith( MAGIC_VIRTUAL_COMMENT ):
+                if clean_line.startswith( MAGIC_MODDOC_COMMENT ):
+                    try:    mdMap[mdfile_name]
+                    except: mdMap[mdfile_name]=[]
+                    mdMap[mdfile_name].append((TXT,[MAGIC_MODDOC_COMMENT]))
+                    continue
+                
+                if clean_line.startswith( MAGIC_VIRTUAL_COMMENT_START ):
                     is_virtual_mode=True
                     is_virtual_line=True
                     continue
@@ -761,13 +774,16 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                     is_virtual_line=False
                     continue                
 
-                if clean_line.startswith( MAGIC_TEXT_COMMENT_START ):
+                if clean_line.startswith( MAGIC_PROSE_COMMENT_START ):
                     text_lines=[]
                     continue                                    
                 if text_lines is not None and clean_line.startswith( 
-                    MAGIC_TEXT_COMMENT_END ):
+                    MAGIC_PROSE_COMMENT_END ):                    
                     try:    mdMap[mdfile_name]
-                    except: mdMap[mdfile_name]=[]                    
+                    except: mdMap[mdfile_name]=[]
+                    if len(source_lines)>0:        
+                        mdMap[mdfile_name].append((SRC,source_lines))
+                        source_lines=[]                                                     
                     mdMap[mdfile_name].append((TXT,text_lines))                    
                     text_lines=None
                     continue                                    
@@ -789,7 +805,9 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                             if len(source_lines)>0:        
                                 mdMap[mdfile_name].append((SRC,source_lines))
                         mdfile_name=input_name
-                        source_lines=[]                    
+                        source_lines=[]             
+                    continue 
+                           
                 if text_lines is not None: text_lines.append(line)    
                 else: source_lines.append(line)          
                          
@@ -829,8 +847,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
         all_names = __get_all_names( module )    
         #print("module", module.__file__)
         #print("all_names", all_names)
-        magic_mod_doc = inspect.getdoc(module) or ""
-        #print(magic_mod_doc) # TODO: Where should this be written?    
+        magic_moddoc = inspect.getdoc(module) or ""
             
         # Process the "markdown map", generating the requested docs
         #print( "mdMap", mdMap )
@@ -850,6 +867,9 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                 #print(page_section)
                 sec_type, sec_lines = page_section
                 if sec_type==TXT:
+                    if sec_lines[0]==MAGIC_MODDOC_COMMENT:
+                        md_file.write(magic_moddoc)
+                        continue
                     md_file.write('\n'.join(sec_lines))
                     md_file.write('\n')        
                 if sec_type==SRC:             

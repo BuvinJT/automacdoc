@@ -7,13 +7,15 @@ itself written in [Python](https://python.org).
 
 ## Why was this project created?
 
-The basic starting point for Python documentation generators is via the 
-Standard Library module [pydoc](https://docs.python.org/3/library/pydoc.html).
-While that tool is easy to use, it is not flexible and the end result leaves something
-to be desired. In contrast, the gold standard for auto generating Python documention is
-argably [Sphinx](https://www.sphinx-doc.org/). But that tool is complicated, and is 
+When looking for Python documentation generators, the typical starting point one
+will discover is the Standard Library module [pydoc](https://docs.python.org/3/library/pydoc.html).
+While that tool is easy to use, it is not flexible, and the end result leaves something
+to be desired. In contrast, the gold standard for auto generating Python documentation is
+arguably [Sphinx](https://www.sphinx-doc.org/). But that tool is complicated, and is 
 driven by **reStructuredText**.  Too bad that reStructuredText *sucks*, **MarkDown** *rocks*!
-[MkDocs](https://mkdocs.org) is an amazing tool to generate a website with MarkDown...
+Considering that the ongoing work to maintain documentation primary revolves around
+writing doc strings, having an markdown option rather than reStructuredText may 
+save a great deal of effort! [MkDocs](https://mkdocs.org) is an amazing tool to generate a website with MarkDown...
 but until now, there was no tool for *auto generating* a MkDocs project from Python source!
 
 ## How do I install it?
@@ -51,11 +53,15 @@ This process creates:
 ### Magic Mode
   
 By default, "Magic Mode" is used to generate the documents in a dynamic, highly
-customizable manner.  Those objects which are available naturally via a package 
-import, within a Python runtime context, are the those which are documented.
-More specifically, the source elements which are explicitly included within 
-a given Python package's `__init__` module will be indexed by the parser
-/ inspector. 
+customizable manner. The key difference between this mode vs. "Raw Mode", is that
+the core method by which objects are indexed is "by import" rather than "file path".
+This mode also provides the means to define the structure of the content produced
+yourself to a notable degree.
+
+The way objects are found in this mode aligns with how the content of a package 
+naturally resolves via import within a Python runtime context. The source elements 
+which are explicitly included within a given Python package's `__init__` module 
+will be indexed by the doc generator's parser / inspector. 
 
 As a bonus, when using this mode, "magic comments" (included for this specific
 tool) will be processed if placed within an `__init__` module being scanned.
@@ -67,14 +73,36 @@ This mode may be most easily understood by looking at an example file provided.
 **example/src/__init__.py**:
 
 ```py3
-# DOCS > Mini.md
+"""
+This library is very impressive... :)
+"""
+# docs > Introduction.md
+# docs : __doc__ 
+
+#------------------------------------------------------------------------------
+# docs > Mini.md
+""" docs : prose
+Here is some preamble text for the page...  
+"""
 from .functions import mini, MIN_SIZE
-# DOCS > Shark.md
+""" docs : prose
+Closing comments on these functions...  
+"""
+
+#------------------------------------------------------------------------------
+# docs > Shark.md
+""" docs : prose
+This page is devoted to the **Shark**.  
+"""
 from .class_and_function import Shark, maxi
-# DOCS > NULL
+
+#------------------------------------------------------------------------------
+# docs > null
 from os import abc 
-# DOCS > Config Parser.md
-""" DOCS : VIRTUAL
+
+#------------------------------------------------------------------------------
+# docs > Config Parser.md
+""" docs : virtual
 from configparser import ConfigParser
 """ 
 ```
@@ -85,7 +113,7 @@ be found). Rather than importing the entire directory under "src", only the
 items defined in this file are imported by a Python interpreter. Likewise, that
 is all which is auto documented when running in this mode.  
 
-**START WRITING**: `# DOCS >`
+**START WRITING**: `# docs >`
 
 The comment lines shown which start with this comment indicate a starting point 
 for what is to be written to a given markdown file. That file/page will be named 
@@ -101,14 +129,30 @@ when using this mode. Therefore, after "pip installing" any library (including
 from remote or *local* sources), you could follow that up by running `automacdoc` 
 against it *by import name*!     
 
-**DISCARD**: `# DOCS > NULL`
+**PROSE**:
+
+```py3
+""" docs : prose
+This page is devoted to the **Shark**.
+"""
+````
+
+Following this comment pattern, "write" this markdown to the current document 
+being written.
+
+**PACKAGE DOCSTRING**: `# docs : __doc__` 
+
+Inject the the package doc string into the current document being written. 
+
+
+**DISCARD**: `# docs > null`
 
 Discards the documentation for whatever source code follows. 
 
 **VIRTUAL CODE**:
 
 ```py3
-""" DOCS > VIRTUAL
+""" docs > virtual
 is_virtual_code_cool = True
 """
 ````
