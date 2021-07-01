@@ -1,35 +1,45 @@
-# Welcome to AutoMacDoc
+# AutoMacDoc Utility
 
 ## What is AutoMacDoc?
 AutoMacDoc is a tool to generate documentation for Python modules or groups
-of functions. It extends the features of [MkDocs](https://mkdocs.org).  It is,
-itself written in [Python](https://python.org).
+of functions. It extends the features of [MkDocs](https://mkdocs.org).
+It is, itself written in [Python](https://python.org).
 
 ## Why was this project created?
 
-When looking for Python documentation generators, the typical starting point one
-will discover is the Standard Library module [pydoc](https://docs.python.org/3/library/pydoc.html).
-While that tool is easy to use, it is not flexible, and the end result leaves something
-to be desired. In contrast, the gold standard for auto generating Python documentation is
-arguably [Sphinx](https://www.sphinx-doc.org/). But that tool is complicated, and is 
-driven by **reStructuredText**.  Too bad that reStructuredText *sucks*, **MarkDown** *rocks*!
-Considering that the ongoing work to maintain documentation primary revolves around
-writing doc strings, having an markdown option rather than reStructuredText may 
-save a great deal of effort! [MkDocs](https://mkdocs.org) is an amazing tool to generate a website with MarkDown...
-but until now, there was no tool for *auto generating* a MkDocs project from Python source!
+[MkDocs](https://mkdocs.org) is an amazing tool to generate a website with 
+[Markdown](https://en.wikipedia.org/wiki/Markdown).
+Until now, however, there was no tool for *auto generating* a MkDocs project 
+from Python source.
+
+The Standard Library [pydoc](https://docs.python.org/3/library/pydoc.html) tool
+is the typical starting point when comparing Python documentation generators. 
+While that tool is easy to use, it's not flexible, and the end result leaves 
+something to be desired. In contrast, many would consider the gold standard for
+auto generating Python documentation to be [Sphinx](https://www.sphinx-doc.org/).
+But that tool is complicated, and uses **reStructuredText**.
+Too bad reStructuredText *sucks*, **MarkDown** *rocks*!
+
+As the ongoing work involved in documenting your code will end up revolving
+around writing [Doc Strings](https://www.python.org/dev/peps/pep-0257/) one way 
+or another, being able to express yourself in those tasks via Markdown will make
+you HAPPY for a long time to come!
 
 ## How do I install it?
-With pip pardi : `pip install automacdoc`
 
-## Recipe to make it work!
+`pip install automacdoc`
+
+## Recipe to make it work:
   - Ingredients:
     - 1 folder containing Python source files (e.g. the `example` folder in this repo)
-    - 1 (or more!) custom Docstrings are ideally include in that code, to supplement the auto generated text
+    OR
+    - 1 fresh `pip install`
+    - (OPTIONAL) custom Docstrings and/or "magic comments" included in source (see below)
 
   - Easy steps:
     - Install automacdoc.
     - Open a terminal and change to the project directory. Example: `cd automacdoc`
-    - Run automacdoc. Example: `automacdoc example/src example -m -c -s`
+    - Run automacdoc. Example: `automacdoc example/src example -r -c -s`
     
   - Full command line argument details:
 
@@ -43,32 +53,53 @@ Usage: automacdoc source destination [-m/-r] [-c] [-s]
 ```
  
 ## How does this work?
-AutoMacDoc analyzes your Python source and generates *markdown* files from them.
+AutoMacDoc analyzes your Python source and generates markdown files from them.
 It then employs MkDocs to produce html based documentation from the markdown!
 This process creates:
   - a 'mkdocs.yml' file, which is a config file for [MkDocs](https://mkdocs.org)
-  - a 'docs' folder, which contains the markdown source processed by [MkDocs](https://mkdocs.org)
-  - a 'site' folder, which contains the static site produced 
+  - a 'docs' folder, containing the markdown 
+  - a 'site' folder, which is the final web site produced 
+
+### Raw Mode
+
+The easiest way to learn to use AutoMacDoc may be to first run the example 
+provided in "Raw Mode". Pass the `-r` switch on the command line to enable 
+this option. Using this method for generating the documentation, the entire
+directory tree for a source path specified is recursively scanned and all 
+elements of the code indexed. The files produced have a direct one-to-one 
+alignment of Python package / module to a sub directory / document 
+(i.e. site page).
+
+This is the most straight forward style for indexing the exact source 
+found within that Python code base in a literal manner.    
  
 ### Magic Mode
   
-By default, "Magic Mode" is used to generate the documents in a dynamic, highly
+Now that you've seen how easy it is to use the direct "Raw Mode",
+"Magic Mode" may be better understood in its contrast to it.   
+"Magic Mode" is used to generate the documents in a more dynamic,
 customizable manner. The key difference between this mode vs. "Raw Mode", is that
-the core method by which objects are indexed is "by import" rather than "file path".
+the method by which objects are indexed is "by import" rather than by "file path".
 This mode also provides the means to define the structure of the content produced
-yourself to a notable degree.
+to a notable degree.
 
 The way objects are found in this mode aligns with how the content of a package 
 naturally resolves via import within a Python runtime context. The source elements 
 which are explicitly included within a given Python package's `__init__` module 
 will be indexed by the doc generator's parser / inspector. 
 
-As a bonus, when using this mode, "magic comments" (included for this specific
-tool) will be processed if placed within an `__init__` module being scanned.
-This is used to dictate how the markdown files / site pages will be named, ordered, 
-and the content which they index.
+The command line argument passed for the "source" argument may simply be the 
+name of an import. That argument does not have to be the path to its directory, 
+when using this mode. Therefore, after "pip installing" any library (including
+from remote or *local* sources), you could follow that up by running `automacdoc` 
+against it *by import name*!     
 
-This mode may be most easily understood by looking at an example file provided.   
+As a bonus, when using this mode, "magic comments" (using syntax defined for this
+specific tool) will be processed if placed within such an `__init__` module being
+scanned. This is used to dictate how the markdown files / site pages will be named
+and ordered, along with what content is generated.
+
+Let's look at an example "magic init" file...   
 
 **example/src/__init__.py**:
 
@@ -109,40 +140,33 @@ from configparser import ConfigParser
 
 This `__init__` file naturally controls what is accessible via the Python 
 import system when a client executes `import src` (assuming that package can 
-be found). Rather than importing the entire directory under "src", only the 
-items defined in this file are imported by a Python interpreter. Likewise, that
-is all which is auto documented when running in this mode.  
+be found). The items defined in this file are imported by a Python interpreter. 
+They are also auto documented when scanned by this tool, along with processing
+the "magic comments" the interpreter ignored.
 
-**START WRITING**: `# docs >`
+The following magic comments commands may be included in your `__init__` module.  
 
-The comment lines shown which start with this comment indicate a starting point 
+**START WRITING**: `# docs > [Page Name].md`
+
+Comment lines which start with this, indicate a starting point 
 for what is to be written to a given markdown file. That file/page will be named 
-by what follows that comment prefix. Note that the source content indexed and 
+by what follows that `docs >` prefix. Note that the source content indexed and 
 included in the resulting file may come from *any* importable module / package 
-on your system.  That does not have to be limited to only the source within a 
-fixed directory.
-
-In a similar manner to how the import tracing works when processing the code,
-the command line argument passed for the "source" argument may simply be the 
-name of an import. That argument does not have to be the path to its directory, 
-when using this mode. Therefore, after "pip installing" any library (including
-from remote or *local* sources), you could follow that up by running `automacdoc` 
-against it *by import name*!     
+on your system - not just your source!  
 
 **PROSE**:
 
 ```py3
 """ docs : prose
-This page is devoted to the **Shark**.
+This markdown appears where ever you want in the current document.
 """
 ````
 
-Following this comment pattern, "write" this markdown to the current document 
-being written.
+Following this comment pattern, "write" this markdown to the current document.
 
 **PACKAGE DOCSTRING**: `# docs : __doc__` 
 
-Inject the the package doc string into the current document being written. 
+Inject the the package doc string into the current document. 
 
 
 **DISCARD**: `# docs > null`
@@ -157,22 +181,11 @@ is_virtual_code_cool = True
 """
 ````
 
-Following this comment pattern, will cause the parsing/inpsecting to occur 
-as though the virtual code were actually present,
-but without it having to truly be executed and included in your project.
+Following this comment pattern, the parsing / object inspecting performed
+by the tool will act as though the virtual code were actually present,
+but without it having to truly be included in your project.
 This provides a means to create documentation in a completely open ended manner
-that is is not tightly bound to the literal source.   
-
-### Raw Mode
-
-Alternatively, AutoMacDoc may be run in "Raw Mode". Pass the `-r` switch on the 
-command line for this. Using this method for generating the documentation, the 
-entire directory tree for a source path specified is recursively scanned and all 
-elements of the source indexed. The files produced have a direct one-to-one 
-alignment of python package / module to a sub directory / document (site page).
-
-This is the most detailed, comprehensive style for indexing the exact source 
-found within that Python code base in a literal manner.    
+that is is not tightly bound to any literal source.   
 
 ## Minimal project layout
 
