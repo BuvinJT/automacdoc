@@ -15,125 +15,506 @@ import shutil
  
 RAW_MODE, MAGIC_MODE = range(2)
 
+MAGIC_START_DOC_COMMENT     = '# docs >'
+MAGIC_APPEND_DOC_COMMENT    = '# docs >>'
 
-MAGIC_START_DOC_COMMENT   = '# docs >'
-MAGIC_APPEND_DOC_COMMENT  = '# docs >>'
-
-MAGIC_PROSE_COMMENT_START  = '""" docs : prose'
-MAGIC_PROSE_COMMENT_END    = '"""'
+MAGIC_PROSE_COMMENT_START   = '""" docs : prose'
+MAGIC_PROSE_COMMENT_END     = '"""'
 
 MAGIC_VIRTUAL_COMMENT_START = '""" docs : virtual'
 MAGIC_VIRTUAL_COMMENT_END   = '"""'
 
-MAGIC_NULL                = 'null'
-MAGIC_MODDOC_COMMENT      = '# docs : __doc__' 
+MAGIC_NULL                  = 'null'
+MAGIC_MODDOC_COMMENT        = '# docs : __doc__' 
 
 TXT,SRC=range(2)
 
-def rm_docstring_from_source(source):
+class_name_md = (
+    "## **{0}**`#!py3 class` {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name
+static_method_name_md = (
+    "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
+)  # class, name, args
+object_method_name_md = (
+    "### *obj*.**{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, args
+static_attribute_name_md = ( 
+    "### *{0}*.**{1}** *{2}* {{ #{1} data-toc-label={1} }}\n\n".format
+)  # class, name, type
+object_attribute_name_md = ( 
+    "### *obj*.**{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, type
+
+var_md = ( 
+    "### **{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, type
+all_vars_md= (
+    "## **Constants and Globals** {{ #Constants-and-Globals data-toc-label=\"Constants and Globals\" }}\n\n".format
+)  
+all_funcs_md = (
+    "## **Functions** {{ #Functions data-toc-label=Functions }}\n\n".format
+)  # name
+function_name_md = (
+    "### **{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, args
+doc_md = "{}\n".format  # doc
+source_md = (
+    '\n\n??? info "Source Code" \n\t```py3 linenums="1 1 2" \n{}\n\t```\n'.
+    format
+)  # source
+
+def write_doc(src: str, mainfolder: str, options:dict=None ):    
+    #print( "write_doc", src, mainfolder, options )
+    project_icon = "code"  # https://material.io/tools/icons/?style=baseline
+    project_name = mainfolder.split("/")[-1]
+    doc_path = os.path.join(os.path.abspath(mainfolder), "docs")
+    if not os.path.isdir(doc_path): os.makedirs(doc_path)
+    toc = ""
+    lines = []
+    
+    mode=options.get("mode",MAGIC_MODE)
+    if mode==MAGIC_MODE: 
+        path_head,path_tail=os.path.split( src )
+        if len(path_head) > 0:
+            orginal_wrkdir = os.path.abspath(os.curdir)
+            os.chdir(path_head)              
+        else: orginal_wrkdir = None    
+        package_name = path_tail
+        magic_init_path = __get_module_path( 
+            package_name, is_extern_mem_space=True ) 
+        #print( "package init_path", magic_init_path )               
+             
+        # Build the "markdown map" first via "magic comments"           
+        mdMap={} # { mdfile_path : [(TXT,text_lines),(SRC,source_lines),...] }            
+        try: 
+            with open( magic_init_path, 'r' ) as f: init_content=f.read()
+        except Exception as e:
+            __on_err_exc("cannot read from path: %s" % (magic_init_path,), e)
+        lines = init_content.split('\n')
+        mdfile_name = None        
+        is_virtual_mode=False
+        if MAGIC_START_DOC_COMMENT in init_content:
+            is_virtual_line=False            
+            source_lines=[]
+            text_lines=None            
+            for line in lines:
+                clean_line = line.strip()
+                
+                if clean_line.startswith( MAGIC_MODDOC_COMMENT ):
+                    try:    mdMap[mdfile_name]
+                    except: mdMap[mdfile_name]=[]
+                    mdMap[mdfile_name].append((TXT,[MAGIC_MODDOC_COMMENT]))
+                    continue
+                
+                if clean_line.startswith( MAGIC_VIRTUAL_COMMENT_START ):
+                    is_virtual_mode=True
+                    is_virtual_line=True
+                    continue
+                if is_virtual_line and clean_line.startswith( 
+                    MAGIC_VIRTUAL_COMMENT_END ):
+                    is_virtual_line=False
+                    continue                
+
+                if clean_line.startswith( MAGIC_PROSE_COMMENT_START ):
+                    text_lines=[]
+                    continue                                    
+                if text_lines is not None and clean_line.startswith( 
+                    MAGIC_PROSE_COMMENT_END ):                    
+                    try:    mdMap[mdfile_name]
+                    except: mdMap[mdfile_name]=[]
+                    if len(source_lines)>0:        
+                        mdMap[mdfile_name].append((SRC,source_lines))
+                        source_lines=[]                                                     
+                    mdMap[mdfile_name].append((TXT,text_lines))                    
+                    text_lines=None
+                    continue                                    
+                    
+                if clean_line.startswith( MAGIC_START_DOC_COMMENT ):
+                    try: 
+                        input_name=line.split( MAGIC_START_DOC_COMMENT )[1].strip()
+                    except Exception as e: 
+                        input_name=None
+                        __on_warn_exc("processing magic comment: %s" % 
+                                      (line,), e)
+                    if input_name != mdfile_name:                                                                                 
+                        if mdfile_name:
+                            try:    mdMap[mdfile_name]
+                            except: mdMap[mdfile_name]=[]
+                            if text_lines is not None:
+                                mdMap[mdfile_name].append((TXT,text_lines))
+                                text_lines = None
+                            if len(source_lines)>0:        
+                                mdMap[mdfile_name].append((SRC,source_lines))
+                        mdfile_name=input_name
+                        source_lines=[]             
+                    continue 
+                           
+                if text_lines is not None: text_lines.append(line)    
+                else: source_lines.append(line)          
+                         
+            if mdfile_name:
+                try:    mdMap[mdfile_name]
+                except: mdMap[mdfile_name]=[]
+                if text_lines is not None:
+                    mdMap[mdfile_name].append((TXT,text_lines))
+                    text_lines = None
+                if len(source_lines)>0:
+                    mdMap[mdfile_name].append((SRC,source_lines))
+        else:                
+            mdfile_name = "%s.md" % (package_name,) 
+            mdMap[mdfile_name]=lines  
+                  
+        package_path = os.path.dirname( magic_init_path )                  
+        
+        # Process "magic virtual code comments"
+        # if there is virtual code, use a temp copy of the package, with that code 
+        # enabled, and import it by path directly
+        # otherwise, use the abstracted method to find the import naturally    
+        if is_virtual_mode:
+            #print( "virtual magic init!" )                
+            tmp_dir_path = tempfile.mkdtemp()
+            tmp_pkg_path = os.path.join(tmp_dir_path,package_name)
+            shutil.copytree(package_path,tmp_pkg_path)
+            tmp_file_path = os.path.join(tmp_pkg_path,'__init__.py')                    
+            virtual_source = '\n'.join(_to_virtual_lines(lines))
+            with open( tmp_file_path, 'w' ) as f: f.write( virtual_source )
+            if not orginal_wrkdir: orginal_wrkdir = os.path.abspath(os.curdir)
+            os.chdir(tmp_dir_path)   
+            magic_init_path = tmp_file_path
+
+        # get a module object and all its identifiers, categorized, but not filtered
+        module =(__get_import_by_path(magic_init_path) if is_virtual_mode else          
+                 __get_import_module(package_name))        
+        all_names = __get_all_names( module )    
+        #print("module", module.__file__)
+        #print("all_names", all_names)
+        magic_moddoc = inspect.getdoc(module) or ""
+            
+        # Process the "markdown map", generating the requested docs
+        #print( "mdMap", mdMap )
+        
+        for mdfile_name in mdMap: 
+            
+            if mdfile_name==MAGIC_NULL: continue
+
+            page_content = mdMap[mdfile_name]
+            if page_content is None: continue
+            
+            mdfile_path = os.path.join(doc_path, mdfile_name)    
+            md_file = open( mdfile_path, "w")   
+            #print("Writing document: %s" % (mdfile_name,))  
+         
+            for page_section in page_content:
+                #print(page_section)
+                sec_type, sec_lines = page_section
+                if sec_type==TXT:
+                    if sec_lines[0]==MAGIC_MODDOC_COMMENT:
+                        md_file.write(magic_moddoc)
+                        continue
+                    md_file.write('\n'.join(sec_lines))
+                    md_file.write('\n')        
+                if sec_type==SRC:             
+                    parsed = __parse_sec_for_names( 
+                        module, all_names, package_path, sec_lines )
+                    #print( "parsed", parsed )
+                    if not parsed: continue   
+                    mod_info, class_info, func_info, var_info = parsed
+                    #print( mod_info, class_info, func_info, var_info )       
+                    for name in mod_info: 
+                        __write_mod(md_file, mod_info[name], name, options)                             
+                    for name in class_info: 
+                        __write_class(md_file, class_info[name], name, options)
+                    if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
+                    for name in func_info: 
+                        __write_func(md_file, func_info[name], name, options)     
+                    if len(var_info) > 0 and (len(func_info) > 0 or len(class_info) > 0): 
+                        write_vars_header(md_file)
+                    for name in var_info:  
+                        __write_var(md_file, var_info[name], name, options)                           
+            md_file.close()    
+            try: toc += get_toc_lines_from_file_path(mdfile_name)
+            except Exception as e: __on_warn_exc("TOC error",e) 
+
+        # restore working directory and clean up temp files
+        if orginal_wrkdir: os.chdir(orginal_wrkdir)
+        if is_virtual_mode: shutil.rmtree(tmp_dir_path)                
+    else:         
+        code_path = os.path.abspath(src)
+        package_name = code_path.split("/")[-1]
+        root_path = os.path.dirname(code_path)
+         
+        # load the architecture of the module
+        ign_pref_file = "__"
+        full_list_glob = glob.glob(code_path + "/**", recursive=True)
+        list_glob = [
+            p
+            for p in full_list_glob
+            if "/" + ign_pref_file not in p and os.path.isfile(p) and p[-3:] == ".py" \
+                and "__init__" not in p
+        ]
+
+        # write every markdown files based on the architecture
+        #Since windows and Linux platforms utilizes different slash in their file structure
+        system_slash_style = {"Windows": "\\", "Linux": "/"}                
+        for mod in list_glob:
+            module_name = mod[len(root_path) + 1 : -3]\
+                .replace(system_slash_style.get(platform.system(), "/"), ".")
+            mdfile_path = os.path.join(
+                doc_path, mod[len(code_path) + 1:-3] + ".md"
+            )
+            mdfile_name = mdfile_path[len(doc_path) + 1:]
+            try:
+                write_module(root_path, module_name, mdfile_path, options)
+                toc += get_toc_lines_from_file_path(mdfile_name)
+            except Exception as e: __on_warn_exc("TOC error", e)
+
+    #print( "toc", toc )
+    if len(toc) == 0:
+        raise ValueError("All the files seem invalid")
+    
+    #removed the condition because it would'nt update the yml file in case
+    #of any update in the source code
+    yml_path = os.path.join(mainfolder, 'mkdocs.yml')
+    write_mkdocs_yaml(yml_path, project_name, toc)
+
+    index_path = os.path.join(doc_path, 'index.md')
+    write_indexmd(index_path, project_name)
     """
-    Remote the docstring from the source code of a function or a class
+    if not os.path.isfile(yml_path):
+        write_mkdocs_yaml(yml_path, project_name, toc)
+
+    index_path = os.path.join(doc_path, 'index.md')
+    if not os.path.isfile(index_path):
+        write_indexmd(index_path, project_name)
+    """
+def write_module(
+    path_to_home: str,
+    module_import: str,
+    path_to_md: str,
+    options: dict = None
+):
+    """
+    Generate a Markdown file based on the content of a Python module
 
     **Parameters**
-    > **source:** `str` -- Source code of a function or a class
-
-    **Returns**
-    > `str` -- Source code of a class without docstring
-    """
-    source = source.split('"""')
-    if len(source) > 1:
-        del source[1]  # remove docstring
-    source = "".join(source)
-    # to handle intendation inside functions and classes
-    source = source.split("\n")
-    nb_indent = len(source[0]) - len(source[0].lstrip())
-    for i in range(len(source)):
-        source[i] = "\t" + source[i][nb_indent:]
-    source = "\n".join(source)
-    return source
-
-def create_var(name: str, obj, options: dict):
-    return create_att(name, obj, options)
-
-def create_att(name: str, obj, options: dict):
-    """
-    Generate a dictionary that contains the information about an attribute
-
-    **Parameters**
-    > **name:** `str` -- name of the attribute as returned by `inspect.getmembers`
-    > **obj:** `object` -- object of the attribute as returned by `inspect.getmembers`
+    > **path_to_home:** `str` -- path to the root of the project (2 steps before the `__init__.py`)
+    > **module_import:** `str` -- module name (ex: `my_package.my_module`)
+    > **path_to_md:** `str` -- path to the output markdown file
     > **options:** `dict` -- extended options
 
-    **Returns**
-    > `dict` -- with keys:
-    >  - *name*, *obj* -- the attribute name and object as returned by `inspect.getmembers`
-    >  - *module* -- name of the module
-    >  - *path* -- path of the module file
-    >  - *doc* -- docstring of the attribute
-    >  - *source* -- source code of the attribute    
-    >  - *type* -- type of the attribute
-    >  - *value* -- value of the attribute
     """
+    package_path = os.path.abspath(path_to_home)
+    sys.path.insert(0, package_path)
 
-    ignore_prefix = options.get("ignore_prefix")
-    if ignore_prefix is not None and name[:len(ignore_prefix)]==ignore_prefix:
-        return None
+    try:
+        module = importlib.import_module(
+            module_import, package=module_import.split(".")[0]
+        )
+    except ModuleNotFoundError as error:
+        raise ModuleNotFoundError(str(error) + " in " + module_import)
 
-    att = {}
-    att["name"]  = 'undefined' if name is None else name  
-    att["obj"]   = obj
-    att["type"]  = 'undefined' if obj is None else __markdown_safe(type(obj)) 
-    att["value"] = 0    
+    clas  = [create_class(n, o, options)
+            for n, o in inspect.getmembers(module, inspect.isclass)]
+    funs  = [create_fun(n, o, options)
+            for n, o in inspect.getmembers(module, inspect.isfunction)]
+    gvars = [create_var(n, o, options)
+            for n, o in __get_import_vars(module)]
+
+    if not os.path.isdir(os.path.dirname(path_to_md)):
+        os.makedirs(os.path.dirname(path_to_md))
+    md_file = open(path_to_md, "w")
+    for c in clas:
+        write_class(md_file, c, options)
+        md_file.writelines("""\n______\n\n""")
+    for f in funs:
+        write_function(md_file, f, options)
+        md_file.writelines("""\n______\n\n""")
+    for v in gvars:
+        write_variable(md_file, v, options)
+        md_file.writelines("""\n______\n\n""")
+    md_file.close()
+
+def write_class(md_file, clas, options):
     """
-    try:    att["module"] = inspect.getmodule(obj).__name__
-    except: att["module"] = None
-    try:    att["path"] = inspect.getmodule(obj).__file__
-    except: att["path"] = None
-    try:    att["doc"] = inspect.getdoc(obj) or ""
-    except: att["doc"] = None
-    try:    att["source"] = inspect.getsource(obj)
-    except: att["source"] = None
-    """    
-    att["module"] = None
-    att["path"] = None
-    att["doc"] = None
-    att["source"] = None
-    return att
-
-
-def create_fun(name: str, obj, options: dict):
-    """
-    Generate a dictionnary that contains the information about a function
+    Add the documentation of a class to a markdown file
 
     **Parameters**
-    > **name:** `str` -- name of the function as returned by `inspect.getmembers`
-    > **obj:** `object` -- object of the function as returned by `inspect.getmembers`
+    > **md_file:** `file` -- file object of the markdown file
+    > **clas:** `dict` -- class information organized as a dict (see `create_clas`)
+
+    """
+    md_file.writelines(class_name_md(clas["name"]))
+    md_file.writelines(doc_md(clas["doc"]))
+
+    if len(clas["class_attributes"]) > 0:
+        md_file.writelines("\n**Class/Static Attributes:** \n\n")
+        for m in clas["class_attributes"]:
+            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
+    if len(clas["class_methods"]) > 0:
+        md_file.writelines("\n**Class/Static Methods:** \n\n")
+        for f in clas["class_methods"]:
+            md_file.writelines(" - [`{0}`](#{0})\n".format(f["name"]))
+    if len(clas["instance_methods"]) > 0:
+        md_file.writelines("\n**Instance Methods:** \n\n")
+        for m in clas["instance_methods"]:
+            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
+    if len(clas["instance_attributes"]) > 0:
+        md_file.writelines("\n**Instance Attributes:** \n\n")
+        for m in clas["instance_attributes"]:
+            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
+
+    md_file.writelines("\n")
+
+    for m in clas["class_attributes"]:
+        write_attribute(md_file, m, True, options, clas)    
+    for f in clas["class_methods"]:
+        write_method( md_file, f, clas, True, options)  
+    for m in clas["instance_methods"]:
+        write_method(md_file, m, clas, False, options)    
+    for m in clas["instance_attributes"]:
+        write_attribute(md_file, m, False, options, clas)    
+
+def write_function(md_file, fun, options):
+    """
+    Add the documentation of a function to a markdown file
+
+    **Parameters**
+    > **md_file:** `file` -- file object of the markdown file
+    > **fun:** `dict` -- function information organized as a dict (see `create_fun`)
+
+    """
+    if fun is None:
+        return
+
+    md_file.writelines(function_name_md(fun["name"], fun["args"]))
+    md_file.writelines(doc_md(fun["doc"]))    
+    if options.get("is_source_shown",False): 
+        md_file.writelines(source_md(fun["source"]))
+
+def write_method(md_file, method, clas, is_static, options):
+    """
+    Add the documentation of a method to a markdown file
+
+    **Parameters**
+    > **md_file:** `file` -- file object of the markdown file
+    > **method:** `dict` -- method information organized as a dict (see `create_fun`)
+    > **class:** `dict` -- class information organized as a dict (see `create_fun`)
+
+    """
+    if method is None:
+        return
+
+    md_file.writelines(
+        static_method_name_md(clas["name"], method["name"], method["args"])
+        if is_static else
+        object_method_name_md(method["name"], method["args"])
+    )
+    md_file.writelines(doc_md(method["doc"]))
+    if options.get("is_source_shown",False):
+        md_file.writelines(source_md(method["source"]))
+
+def write_variable(md_file, var, options):
+    """
+    Add the documentation of a function to a markdown file
+
+    **Parameters**
+    > **md_file:** `file` -- file object of the markdown file
+    > **att:** `dict` -- attribute information organized as a dict (see `create_att`)
     > **options:** `dict` -- extended options
 
-    **Returns**
-    > `dict` -- with keys:
-    >  - *name*, *obj* -- the function name and object as returned by `inspect.getmembers`
-    >  - *module* -- name of the module
-    >  - *path* -- path of the module file
-    >  - *doc* -- docstring of the function
-    >  - *source* -- source code of the function
-    >  - *args* -- arguments of the function as a `inspect.signature` object
     """
+    if var is None:
+        return
 
-    ignore_prefix = options.get("ignore_prefix")
-    if ignore_prefix is not None and name[:len(ignore_prefix)]==ignore_prefix:
-        return None
+    md_file.writelines(var_md(var["name"],var["type"])) 
+    #md_file.writelines(doc_md(var["doc"]))
+    #if options.get("is_source_shown",False):
+    #    md_file.writelines(source_md(var["source"]))    
 
-    fun = {}
-    fun["name"] = name if name else 'undefined'
-    fun["obj"] = obj
-    fun["module"] = inspect.getmodule(obj).__name__
-    fun["path"] = inspect.getmodule(obj).__file__
-    fun["doc"] = inspect.getdoc(obj) or ""
-    fun["source"] = rm_docstring_from_source(inspect.getsource(obj))
-    fun["args"] = inspect.signature(obj)
-    return fun
+def write_attribute(md_file, att, is_static, options, clas=None):
+    """
+    Add the documentation of a function to a markdown file
 
+    **Parameters**
+    > **md_file:** `file` -- file object of the markdown file
+    > **att:** `dict` -- attribute information organized as a dict (see `create_att`)
+    > **options:** `dict` -- extended options
+
+    """
+    if att is None:
+        return
+
+    md_file.writelines(
+        static_attribute_name_md(clas["name"],att["name"],att["type"])
+        if is_static else
+        object_attribute_name_md(att["name"],att["type"])
+    ) 
+    #md_file.writelines(doc_md(att["doc"]))
+    #if options.get("is_source_shown",False):
+    #    md_file.writelines(source_md(att["source"]))    
+
+def write_functions_header(md_file): md_file.writelines(all_funcs_md())
+
+def write_vars_header(md_file): md_file.writelines(all_vars_md())
+
+def write_mkdocs_yaml(path_to_yaml: str, project_name: str, toc: str):
+    """
+    Generate the YAML file that contains the website configs
+
+    **Parameters**
+    > **path_to_yaml:** `str` -- path to the output YAML file
+    > **project_name:** `str` -- name of the project
+    > **toc:** `str` -- the toc and the all hierarchy of the website
+    """
+    yaml_file = open(path_to_yaml, "w")
+    content = """site_name: {}
+theme:
+  name: 'material'
+nav:
+    - Home: index.md
+    - Reference:
+{}
+markdown_extensions:
+    - toc:
+        toc_depth: 3
+        permalink: True
+    - extra
+    - smarty
+    - codehilite
+    - admonition
+    - pymdownx.details
+    - pymdownx.superfences
+    - pymdownx.emoji
+    - pymdownx.inlinehilite
+    - pymdownx.magiclink
+    """.format(project_name, toc)
+    yaml_file.writelines(content)
+    yaml_file.close()
+
+def write_indexmd(path_to_indexmd: str, project_name: str):
+    """
+    Generate the YAML file that contains the website configs
+
+    **Parameters**
+    > **path_to_indexmd:** `str` -- path to the output YAML file
+    > **project_name:** `str` -- name of the project
+    """
+    indexmd_file = open(path_to_indexmd, "w")
+    content = """# Welcome to {0}
+This website contains the documentation for the wonderful project {0}
+""".format(project_name)
+    indexmd_file.writelines(content)
+    indexmd_file.close()
+
+def get_toc_lines_from_file_path(mdfile_name):
+    mdfile_name = mdfile_name.replace('\\','/')
+    lines = ""
+    for i, layer in enumerate(mdfile_name.split("/")):
+        if i + 1 != len(mdfile_name.split("/")):
+            lines += "        " * (i + 1) + "- " + layer + ":\n"
+        else:
+            lines += "        " * (i + 1) + "- " + mdfile_name + "\n"
+    return lines
 
 def create_class(name: str, obj, options: dict):
     """
@@ -219,273 +600,108 @@ def create_class(name: str, obj, options: dict):
                         
     return clas
 
-
-class_name_md = (
-    "## **{0}**`#!py3 class` {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name
-static_method_name_md = (
-    "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
-)  # class, name, args
-object_method_name_md = (
-    "### *obj*.**{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, args
-static_attribute_name_md = ( 
-    "### *{0}*.**{1}** *{2}* {{ #{1} data-toc-label={1} }}\n\n".format
-)  # class, name, type
-object_attribute_name_md = ( 
-    "### *obj*.**{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, type
-
-var_md = ( 
-    "### **{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, type
-all_vars_md= (
-    "## **Constants and Globals** {{ #Constants-and-Globals data-toc-label=\"Constants and Globals\" }}\n\n".format
-)  
-all_funcs_md = (
-    "## **Functions** {{ #Functions data-toc-label=Functions }}\n\n".format
-)  # name
-function_name_md = (
-    "### **{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, args
-doc_md = "{}\n".format  # doc
-source_md = (
-    '\n\n??? info "Source Code" \n\t```py3 linenums="1 1 2" \n{}\n\t```\n'.
-    format
-)  # source
-
-def write_variable(md_file, var, options):
+def create_fun(name: str, obj, options: dict):
     """
-    Add the documentation of a function to a markdown file
+    Generate a dictionnary that contains the information about a function
 
     **Parameters**
-    > **md_file:** `file` -- file object of the markdown file
-    > **att:** `dict` -- attribute information organized as a dict (see `create_att`)
+    > **name:** `str` -- name of the function as returned by `inspect.getmembers`
+    > **obj:** `object` -- object of the function as returned by `inspect.getmembers`
     > **options:** `dict` -- extended options
 
+    **Returns**
+    > `dict` -- with keys:
+    >  - *name*, *obj* -- the function name and object as returned by `inspect.getmembers`
+    >  - *module* -- name of the module
+    >  - *path* -- path of the module file
+    >  - *doc* -- docstring of the function
+    >  - *source* -- source code of the function
+    >  - *args* -- arguments of the function as a `inspect.signature` object
     """
-    if var is None:
-        return
 
-    md_file.writelines(var_md(var["name"],var["type"])) 
-    #md_file.writelines(doc_md(var["doc"]))
-    #if options.get("is_source_shown",False):
-    #    md_file.writelines(source_md(var["source"]))    
+    ignore_prefix = options.get("ignore_prefix")
+    if ignore_prefix is not None and name[:len(ignore_prefix)]==ignore_prefix:
+        return None
 
-def write_attribute(md_file, att, is_static, options, clas=None):
+    fun = {}
+    fun["name"] = name if name else 'undefined'
+    fun["obj"] = obj
+    fun["module"] = inspect.getmodule(obj).__name__
+    fun["path"] = inspect.getmodule(obj).__file__
+    fun["doc"] = inspect.getdoc(obj) or ""
+    fun["source"] = rm_docstring_from_source(inspect.getsource(obj))
+    fun["args"] = inspect.signature(obj)
+    return fun
+
+def create_var(name: str, obj, options: dict):
+    return create_att(name, obj, options)
+
+def create_att(name: str, obj, options: dict):
     """
-    Add the documentation of a function to a markdown file
+    Generate a dictionary that contains the information about an attribute
 
     **Parameters**
-    > **md_file:** `file` -- file object of the markdown file
-    > **att:** `dict` -- attribute information organized as a dict (see `create_att`)
+    > **name:** `str` -- name of the attribute as returned by `inspect.getmembers`
+    > **obj:** `object` -- object of the attribute as returned by `inspect.getmembers`
     > **options:** `dict` -- extended options
 
+    **Returns**
+    > `dict` -- with keys:
+    >  - *name*, *obj* -- the attribute name and object as returned by `inspect.getmembers`
+    >  - *module* -- name of the module
+    >  - *path* -- path of the module file
+    >  - *doc* -- docstring of the attribute
+    >  - *source* -- source code of the attribute    
+    >  - *type* -- type of the attribute
+    >  - *value* -- value of the attribute
     """
-    if att is None:
-        return
 
-    md_file.writelines(
-        static_attribute_name_md(clas["name"],att["name"],att["type"])
-        if is_static else
-        object_attribute_name_md(att["name"],att["type"])
-    ) 
-    #md_file.writelines(doc_md(att["doc"]))
-    #if options.get("is_source_shown",False):
-    #    md_file.writelines(source_md(att["source"]))    
+    ignore_prefix = options.get("ignore_prefix")
+    if ignore_prefix is not None and name[:len(ignore_prefix)]==ignore_prefix:
+        return None
 
-def write_vars_header(md_file): md_file.writelines(all_vars_md())
-
-def write_functions_header(md_file): md_file.writelines(all_funcs_md())
-
-def write_function(md_file, fun, options):
+    att = {}
+    att["name"]  = 'undefined' if name is None else name  
+    att["obj"]   = obj
+    att["type"]  = 'undefined' if obj is None else __markdown_safe(type(obj)) 
+    att["value"] = 0    
     """
-    Add the documentation of a function to a markdown file
+    try:    att["module"] = inspect.getmodule(obj).__name__
+    except: att["module"] = None
+    try:    att["path"] = inspect.getmodule(obj).__file__
+    except: att["path"] = None
+    try:    att["doc"] = inspect.getdoc(obj) or ""
+    except: att["doc"] = None
+    try:    att["source"] = inspect.getsource(obj)
+    except: att["source"] = None
+    """    
+    att["module"] = None
+    att["path"] = None
+    att["doc"] = None
+    att["source"] = None
+    return att
+
+def rm_docstring_from_source(source):
+    """
+    Remote the docstring from the source code of a function or a class
 
     **Parameters**
-    > **md_file:** `file` -- file object of the markdown file
-    > **fun:** `dict` -- function information organized as a dict (see `create_fun`)
+    > **source:** `str` -- Source code of a function or a class
 
+    **Returns**
+    > `str` -- Source code of a class without docstring
     """
-    if fun is None:
-        return
-
-    md_file.writelines(function_name_md(fun["name"], fun["args"]))
-    md_file.writelines(doc_md(fun["doc"]))    
-    if options.get("is_source_shown",False): 
-        md_file.writelines(source_md(fun["source"]))
-
-def write_method(md_file, method, clas, is_static, options):
-    """
-    Add the documentation of a method to a markdown file
-
-    **Parameters**
-    > **md_file:** `file` -- file object of the markdown file
-    > **method:** `dict` -- method information organized as a dict (see `create_fun`)
-    > **class:** `dict` -- class information organized as a dict (see `create_fun`)
-
-    """
-    if method is None:
-        return
-
-    md_file.writelines(
-        static_method_name_md(clas["name"], method["name"], method["args"])
-        if is_static else
-        object_method_name_md(method["name"], method["args"])
-    )
-    md_file.writelines(doc_md(method["doc"]))
-    if options.get("is_source_shown",False):
-        md_file.writelines(source_md(method["source"]))
-
-
-def write_class(md_file, clas, options):
-    """
-    Add the documentation of a class to a markdown file
-
-    **Parameters**
-    > **md_file:** `file` -- file object of the markdown file
-    > **clas:** `dict` -- class information organized as a dict (see `create_clas`)
-
-    """
-    md_file.writelines(class_name_md(clas["name"]))
-    md_file.writelines(doc_md(clas["doc"]))
-
-    if len(clas["class_attributes"]) > 0:
-        md_file.writelines("\n**Class/Static Attributes:** \n\n")
-        for m in clas["class_attributes"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
-    if len(clas["class_methods"]) > 0:
-        md_file.writelines("\n**Class/Static Methods:** \n\n")
-        for f in clas["class_methods"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(f["name"]))
-    if len(clas["instance_methods"]) > 0:
-        md_file.writelines("\n**Instance Methods:** \n\n")
-        for m in clas["instance_methods"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
-    if len(clas["instance_attributes"]) > 0:
-        md_file.writelines("\n**Instance Attributes:** \n\n")
-        for m in clas["instance_attributes"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
-
-    md_file.writelines("\n")
-
-    for m in clas["class_attributes"]:
-        write_attribute(md_file, m, True, options, clas)    
-    for f in clas["class_methods"]:
-        write_method( md_file, f, clas, True, options)  
-    for m in clas["instance_methods"]:
-        write_method(md_file, m, clas, False, options)    
-    for m in clas["instance_attributes"]:
-        write_attribute(md_file, m, False, options, clas)    
-
-def write_module(
-    path_to_home: str,
-    module_import: str,
-    path_to_md: str,
-    options: dict = None
-):
-    """
-    Generate a Markdown file based on the content of a Python module
-
-    **Parameters**
-    > **path_to_home:** `str` -- path to the root of the project (2 steps before the `__init__.py`)
-    > **module_import:** `str` -- module name (ex: `my_package.my_module`)
-    > **path_to_md:** `str` -- path to the output markdown file
-    > **options:** `dict` -- extended options
-
-    """
-    package_path = os.path.abspath(path_to_home)
-    sys.path.insert(0, package_path)
-
-    try:
-        module = importlib.import_module(
-            module_import, package=module_import.split(".")[0]
-        )
-    except ModuleNotFoundError as error:
-        raise ModuleNotFoundError(str(error) + " in " + module_import)
-
-    clas  = [create_class(n, o, options)
-            for n, o in inspect.getmembers(module, inspect.isclass)]
-    funs  = [create_fun(n, o, options)
-            for n, o in inspect.getmembers(module, inspect.isfunction)]
-    gvars = [create_var(n, o, options)
-            for n, o in __get_import_vars(module)]
-
-    if not os.path.isdir(os.path.dirname(path_to_md)):
-        os.makedirs(os.path.dirname(path_to_md))
-    md_file = open(path_to_md, "w")
-    for c in clas:
-        write_class(md_file, c, options)
-        md_file.writelines("""\n______\n\n""")
-    for f in funs:
-        write_function(md_file, f, options)
-        md_file.writelines("""\n______\n\n""")
-    for v in gvars:
-        write_variable(md_file, v, options)
-        md_file.writelines("""\n______\n\n""")
-    md_file.close()
-
-
-def get_toc_lines_from_file_path(mdfile_name):
-    mdfile_name = mdfile_name.replace('\\','/')
-    lines = ""
-    for i, layer in enumerate(mdfile_name.split("/")):
-        if i + 1 != len(mdfile_name.split("/")):
-            lines += "        " * (i + 1) + "- " + layer + ":\n"
-        else:
-            lines += "        " * (i + 1) + "- " + mdfile_name + "\n"
-    return lines
-
-
-def write_mkdocs_yaml(path_to_yaml: str, project_name: str, toc: str):
-    """
-    Generate the YAML file that contains the website configs
-
-    **Parameters**
-    > **path_to_yaml:** `str` -- path to the output YAML file
-    > **project_name:** `str` -- name of the project
-    > **toc:** `str` -- the toc and the all hierarchy of the website
-    """
-    yaml_file = open(path_to_yaml, "w")
-    content = """site_name: {}
-theme:
-  name: 'material'
-nav:
-    - Home: index.md
-    - Reference:
-{}
-markdown_extensions:
-    - toc:
-        toc_depth: 3
-        permalink: True
-    - extra
-    - smarty
-    - codehilite
-    - admonition
-    - pymdownx.details
-    - pymdownx.superfences
-    - pymdownx.emoji
-    - pymdownx.inlinehilite
-    - pymdownx.magiclink
-    """.format(project_name, toc)
-    yaml_file.writelines(content)
-    yaml_file.close()
-
-
-def write_indexmd(path_to_indexmd: str, project_name: str):
-    """
-    Generate the YAML file that contains the website configs
-
-    **Parameters**
-    > **path_to_indexmd:** `str` -- path to the output YAML file
-    > **project_name:** `str` -- name of the project
-    """
-    indexmd_file = open(path_to_indexmd, "w")
-    content = """# Welcome to {0}
-This website contains the documentation for the wonderful project {0}
-""".format(project_name)
-    indexmd_file.writelines(content)
-    indexmd_file.close()
+    source = source.split('"""')
+    if len(source) > 1:
+        del source[1]  # remove docstring
+    source = "".join(source)
+    # to handle intendation inside functions and classes
+    source = source.split("\n")
+    nb_indent = len(source[0]) - len(source[0].lstrip())
+    for i in range(len(source)):
+        source[i] = "\t" + source[i][nb_indent:]
+    source = "\n".join(source)
+    return source
 
 def __get_module_path( module_name: str, is_extern_mem_space=False ):
     """
@@ -747,231 +963,6 @@ def __parse_sec_for_names( module, all_names, package_path, snippet_lines ):
     for n in var_names:   var_info[n]   = __get_source_path( module, n )
                             
     return mod_info, class_info, func_info, var_info
-
-def write_doc(src: str, mainfolder: str, options:dict=None ):    
-    #print( "write_doc", src, mainfolder, options )
-    project_icon = "code"  # https://material.io/tools/icons/?style=baseline
-    project_name = mainfolder.split("/")[-1]
-    doc_path = os.path.join(os.path.abspath(mainfolder), "docs")
-    if not os.path.isdir(doc_path): os.makedirs(doc_path)
-    toc = ""
-    lines = []
-    
-    mode=options.get("mode",MAGIC_MODE)
-    if mode==MAGIC_MODE: 
-        path_head,path_tail=os.path.split( src )
-        if len(path_head) > 0:
-            orginal_wrkdir = os.path.abspath(os.curdir)
-            os.chdir(path_head)              
-        else: orginal_wrkdir = None    
-        package_name = path_tail
-        magic_init_path = __get_module_path( 
-            package_name, is_extern_mem_space=True ) 
-        #print( "package init_path", magic_init_path )                    
-        # Build this raw "markdown map" first via "magic comments"   
-        
-        mdMap={} # { markdown_path : [(TXT,text_lines),(SRC,source_lines),...] }            
-        try: 
-            with open( magic_init_path, 'r' ) as f: init_content=f.read()
-        except Exception as e:
-            __on_err_exc("cannot read from path: %s" % (magic_init_path,), e)
-        lines = init_content.split('\n')
-        mdfile_name = None        
-        is_virtual_mode=False
-        if MAGIC_START_DOC_COMMENT in init_content:
-            is_virtual_line=False            
-            source_lines=[]
-            text_lines=None            
-            for line in lines:
-                clean_line = line.strip()
-                
-                if clean_line.startswith( MAGIC_MODDOC_COMMENT ):
-                    try:    mdMap[mdfile_name]
-                    except: mdMap[mdfile_name]=[]
-                    mdMap[mdfile_name].append((TXT,[MAGIC_MODDOC_COMMENT]))
-                    continue
-                
-                if clean_line.startswith( MAGIC_VIRTUAL_COMMENT_START ):
-                    is_virtual_mode=True
-                    is_virtual_line=True
-                    continue
-                if is_virtual_line and clean_line.startswith( 
-                    MAGIC_VIRTUAL_COMMENT_END ):
-                    is_virtual_line=False
-                    continue                
-
-                if clean_line.startswith( MAGIC_PROSE_COMMENT_START ):
-                    text_lines=[]
-                    continue                                    
-                if text_lines is not None and clean_line.startswith( 
-                    MAGIC_PROSE_COMMENT_END ):                    
-                    try:    mdMap[mdfile_name]
-                    except: mdMap[mdfile_name]=[]
-                    if len(source_lines)>0:        
-                        mdMap[mdfile_name].append((SRC,source_lines))
-                        source_lines=[]                                                     
-                    mdMap[mdfile_name].append((TXT,text_lines))                    
-                    text_lines=None
-                    continue                                    
-                    
-                if clean_line.startswith( MAGIC_START_DOC_COMMENT ):
-                    try: 
-                        input_name=line.split( MAGIC_START_DOC_COMMENT )[1].strip()
-                    except Exception as e: 
-                        input_name=None
-                        __on_warn_exc("processing magic comment: %s" % 
-                                      (line,), e)
-                    if input_name != mdfile_name:                                                                                 
-                        if mdfile_name:
-                            try:    mdMap[mdfile_name]
-                            except: mdMap[mdfile_name]=[]
-                            if text_lines is not None:
-                                mdMap[mdfile_name].append((TXT,text_lines))
-                                text_lines = None
-                            if len(source_lines)>0:        
-                                mdMap[mdfile_name].append((SRC,source_lines))
-                        mdfile_name=input_name
-                        source_lines=[]             
-                    continue 
-                           
-                if text_lines is not None: text_lines.append(line)    
-                else: source_lines.append(line)          
-                         
-            if mdfile_name:
-                try:    mdMap[mdfile_name]
-                except: mdMap[mdfile_name]=[]
-                if text_lines is not None:
-                    mdMap[mdfile_name].append((TXT,text_lines))
-                    text_lines = None
-                if len(source_lines)>0:
-                    mdMap[mdfile_name].append((SRC,source_lines))
-        else:                
-            mdfile_name = "%s.md" % (package_name,) 
-            mdMap[mdfile_name]=lines  
-                  
-        package_path = os.path.dirname( magic_init_path )                  
-        
-        # Process "magic virtual code comments"
-        # if there is virtual code, use a temp copy of the package, with that code 
-        # enabled, and import it by path directly
-        # otherwise, use the abstracted method to find the import naturally    
-        if is_virtual_mode:
-            #print( "virtual magic init!" )                
-            tmp_dir_path = tempfile.mkdtemp()
-            tmp_pkg_path = os.path.join(tmp_dir_path,package_name)
-            shutil.copytree(package_path,tmp_pkg_path)
-            tmp_file_path = os.path.join(tmp_pkg_path,'__init__.py')                    
-            virtual_source = '\n'.join(_to_virtual_lines(lines))
-            with open( tmp_file_path, 'w' ) as f: f.write( virtual_source )
-            if not orginal_wrkdir: orginal_wrkdir = os.path.abspath(os.curdir)
-            os.chdir(tmp_dir_path)   
-            magic_init_path = tmp_file_path
-
-        # get a module object and all its identifiers, categorized, but not filtered
-        module =(__get_import_by_path(magic_init_path) if is_virtual_mode else          
-                 __get_import_module(package_name))        
-        all_names = __get_all_names( module )    
-        #print("module", module.__file__)
-        #print("all_names", all_names)
-        magic_moddoc = inspect.getdoc(module) or ""
-            
-        # Process the "markdown map", generating the requested docs
-        #print( "mdMap", mdMap )
-        
-        for mdfile_name in mdMap: 
-            
-            if mdfile_name==MAGIC_NULL: continue
-
-            page_content = mdMap[mdfile_name]
-            if page_content is None: continue
-            
-            mdfile_path = os.path.join(doc_path, mdfile_name)    
-            md_file = open( mdfile_path, "w")   
-            #print("Writing document: %s" % (mdfile_name,))  
-         
-            for page_section in page_content:
-                #print(page_section)
-                sec_type, sec_lines = page_section
-                if sec_type==TXT:
-                    if sec_lines[0]==MAGIC_MODDOC_COMMENT:
-                        md_file.write(magic_moddoc)
-                        continue
-                    md_file.write('\n'.join(sec_lines))
-                    md_file.write('\n')        
-                if sec_type==SRC:             
-                    parsed = __parse_sec_for_names( 
-                        module, all_names, package_path, sec_lines )
-                    #print( "parsed", parsed )
-                    if not parsed: continue   
-                    mod_info, class_info, func_info, var_info = parsed
-                    #print( mod_info, class_info, func_info, var_info )       
-                    for name in mod_info: 
-                        __write_mod(md_file, mod_info[name], name, options)                             
-                    for name in class_info: 
-                        __write_class(md_file, class_info[name], name, options)
-                    if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
-                    for name in func_info: 
-                        __write_func(md_file, func_info[name], name, options)     
-                    if len(var_info) > 0 and (len(func_info) > 0 or len(class_info) > 0): 
-                        write_vars_header(md_file)
-                    for name in var_info:  
-                        __write_var(md_file, var_info[name], name, options)                           
-            md_file.close()    
-            try: toc += get_toc_lines_from_file_path(mdfile_name)
-            except Exception as e: __on_warn_exc("TOC error",e) 
-
-        # restore working directory and clean up temp files
-        if orginal_wrkdir: os.chdir(orginal_wrkdir)
-        if is_virtual_mode: shutil.rmtree(tmp_dir_path)                
-    else:         
-        code_path = os.path.abspath(src)
-        package_name = code_path.split("/")[-1]
-        root_path = os.path.dirname(code_path)
-         
-        # load the architecture of the module
-        ign_pref_file = "__"
-        full_list_glob = glob.glob(code_path + "/**", recursive=True)
-        list_glob = [
-            p
-            for p in full_list_glob
-            if "/" + ign_pref_file not in p and os.path.isfile(p) and p[-3:] == ".py" \
-                and "__init__" not in p
-        ]
-
-        # write every markdown files based on the architecture
-        #Since windows and Linux platforms utilizes different slash in their file structure
-        system_slash_style = {"Windows": "\\", "Linux": "/"}                
-        for mod in list_glob:
-            module_name = mod[len(root_path) + 1 : -3]\
-                .replace(system_slash_style.get(platform.system(), "/"), ".")
-            mdfile_path = os.path.join(
-                doc_path, mod[len(code_path) + 1:-3] + ".md"
-            )
-            mdfile_name = mdfile_path[len(doc_path) + 1:]
-            try:
-                write_module(root_path, module_name, mdfile_path, options)
-                toc += get_toc_lines_from_file_path(mdfile_name)
-            except Exception as e: __on_warn_exc("TOC error", e)
-
-    #print( "toc", toc )
-    if len(toc) == 0:
-        raise ValueError("All the files seem invalid")
-    
-    #removed the condition because it would'nt update the yml file in case
-    #of any update in the source code
-    yml_path = os.path.join(mainfolder, 'mkdocs.yml')
-    write_mkdocs_yaml(yml_path, project_name, toc)
-
-    index_path = os.path.join(doc_path, 'index.md')
-    write_indexmd(index_path, project_name)
-    """
-    if not os.path.isfile(yml_path):
-        write_mkdocs_yaml(yml_path, project_name, toc)
-
-    index_path = os.path.join(doc_path, 'index.md')
-    if not os.path.isfile(index_path):
-        write_indexmd(index_path, project_name)
-    """
 
 # TODO: define this function correctly
 def __markdown_safe(obj): 
