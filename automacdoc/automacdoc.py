@@ -63,15 +63,28 @@ source_md = (
     format
 )  # source
 
+_old_docs=[]
+_new_docs=[]
+
 def write_doc(src: str, mainfolder: str, options:dict=None ):    
+    global _old_docs
+    global _new_docs
+    
     #print( "write_doc", src, mainfolder, options )
     project_icon = "code"  # https://material.io/tools/icons/?style=baseline
     project_name = mainfolder.split("/")[-1]
+
     doc_path = os.path.join(os.path.abspath(mainfolder), "docs")
-    if not os.path.isdir(doc_path): os.makedirs(doc_path)
+    if not os.path.isdir(doc_path): os.makedirs(doc_path)        
+    for cur_path, _, files in os.walk(doc_path):
+        rel_dir_path = os.path.relpath(cur_path, doc_path)
+        for file in files:
+            if os.path.splitext(file)[1]=='.md':
+                _old_docs.append(os.path.normpath(os.path.join(rel_dir_path, file)))
+            
     toc = ""
     lines = []
-    
+        
     mode=options.get("mode",MAGIC_MODE)
     if mode==MAGIC_MODE: 
         path_head,path_tail=os.path.split( src )
@@ -201,7 +214,9 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             if page_content is None: continue
             
             mdfile_path = os.path.join(doc_path, mdfile_name)    
-            md_file = open( mdfile_path, "w")   
+            md_file = open( mdfile_path, "w")
+            _new_docs.append(mdfile_name)
+               
             #print("Writing document: %s" % (mdfile_name,))  
          
             for page_section in page_content:
@@ -262,7 +277,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             mdfile_path = os.path.join(
                 doc_path, mod[len(code_path) + 1:-3] + ".md"
             )
-            mdfile_name = mdfile_path[len(doc_path) + 1:]
+            mdfile_name = mdfile_path[len(doc_path) + 1:]            
             try:
                 write_module(root_path, module_name, mdfile_path, options)
                 toc += get_toc_lines_from_file_path(mdfile_name)
@@ -272,21 +287,9 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
     if len(toc) == 0:
         raise ValueError("All the files seem invalid")
     
-    #removed the condition because it would'nt update the yml file in case
-    #of any update in the source code
     yml_path = os.path.join(mainfolder, 'mkdocs.yml')
-    write_mkdocs_yaml(yml_path, project_name, toc)
+    write_mkdocs_yaml(yml_path, project_name, toc, doc_path)
 
-    index_path = os.path.join(doc_path, 'index.md')
-    write_indexmd(index_path, project_name)
-    """
-    if not os.path.isfile(yml_path):
-        write_mkdocs_yaml(yml_path, project_name, toc)
-
-    index_path = os.path.join(doc_path, 'index.md')
-    if not os.path.isfile(index_path):
-        write_indexmd(index_path, project_name)
-    """
 def write_module(
     path_to_home: str,
     module_import: str,
@@ -303,6 +306,8 @@ def write_module(
     > **options:** `dict` -- extended options
 
     """
+    global _new_docs
+
     package_path = os.path.abspath(path_to_home)
     sys.path.insert(0, package_path)
 
@@ -321,8 +326,9 @@ def write_module(
             for n, o in __get_import_vars(module)]
 
     if not os.path.isdir(os.path.dirname(path_to_md)):
-        os.makedirs(os.path.dirname(path_to_md))
+        os.makedirs(os.path.dirname(path_to_md))        
     md_file = open(path_to_md, "w")
+    _new_docs.append(os.path.basename(path_to_md))
     for c in clas:
         write_class(md_file, c, options)
         md_file.writelines("""\n______\n\n""")
@@ -457,7 +463,8 @@ def write_functions_header(md_file): md_file.writelines(all_funcs_md())
 
 def write_vars_header(md_file): md_file.writelines(all_vars_md())
 
-def write_mkdocs_yaml(path_to_yaml: str, project_name: str, toc: str):
+def write_mkdocs_yaml(path_to_yaml: str, project_name: str, toc: str,
+                      doc_path: str ):
     """
     Generate the YAML file that contains the website configs
 
@@ -466,13 +473,51 @@ def write_mkdocs_yaml(path_to_yaml: str, project_name: str, toc: str):
     > **project_name:** `str` -- name of the project
     > **toc:** `str` -- the toc and the all hierarchy of the website
     """
-    yaml_file = open(path_to_yaml, "w")
-    content = """site_name: {}
+
+    global _old_docs
+    global _new_docs
+    
+    ref_sec_name = "Reference"
+    yaml_tab = "    "
+    ref_tab  = 2*yaml_tab
+
+    if  os.path.isfile(path_to_yaml):            
+        is_index_doc     = True
+        ref_sec_prefix   = "- " + ref_sec_name
+        prior_yaml_start = ""
+        prior_yaml_end   = ""    
+        is_ref=False
+        is_end=False
+        with open(path_to_yaml, "r") as f:
+            for ln in f:
+                if is_end: prior_yaml_end += ln
+                elif is_ref:
+                    is_end = len(ln.strip()) > 0 and not ln.startswith(ref_tab)
+                    if is_end: prior_yaml_end += ln                    
+                else: 
+                    is_ref = ln.strip().startswith(ref_sec_prefix)
+                    prior_yaml_start += ln                    
+        content = "{}{}{}".format(prior_yaml_start, toc, prior_yaml_end)                            
+    else :
+        toc_docs = [d for d in _old_docs if d not in _new_docs]
+        is_index_doc = 'index.md' in toc_docs
+        if is_index_doc: toc_docs.remove('index.md') 
+        toc_docs.sort()
+        toc_docs.insert(0,'index.md') 
+        nav = ''         
+        toc_fmt = '- {0}: {1}\n'
+        home_entry = yaml_tab + toc_fmt.format('Home','index.md')
+        ref_entry = yaml_tab + toc_fmt.format(ref_sec_name,'')
+        for doc in toc_docs:
+            if doc in _new_docs: continue
+            if doc=='index.md': nav += home_entry
+            else : nav += get_toc_lines_from_file_path(doc,is_top=True)
+        nav += ref_entry.rstrip()
+        content = """site_name: {}
 theme:
   name: 'material'
 nav:
-    - Home: index.md
-    - Reference:
+{}
 {}
 markdown_extensions:
     - toc:
@@ -487,33 +532,33 @@ markdown_extensions:
     - pymdownx.emoji
     - pymdownx.inlinehilite
     - pymdownx.magiclink
-    """.format(project_name, toc)
+""".format(project_name, nav, toc)
+         
+    yaml_file = open(path_to_yaml, "w")
     yaml_file.writelines(content)
     yaml_file.close()
 
-def write_indexmd(path_to_indexmd: str, project_name: str):
-    """
-    Generate the YAML file that contains the website configs
+    if not is_index_doc:
+        index_path = os.path.join(doc_path, 'index.md')
+        write_indexmd(index_path, project_name)
 
-    **Parameters**
-    > **path_to_indexmd:** `str` -- path to the output YAML file
-    > **project_name:** `str` -- name of the project
-    """
+def write_indexmd(path_to_indexmd: str, project_name: str):   
     indexmd_file = open(path_to_indexmd, "w")
-    content = """# Welcome to {0}
-This website contains the documentation for the wonderful project {0}
+    content = """# {0} Documentation
+Welcome to the {0} library documentation site!
 """.format(project_name)
     indexmd_file.writelines(content)
     indexmd_file.close()
 
-def get_toc_lines_from_file_path(mdfile_name):
+def get_toc_lines_from_file_path(mdfile_name,is_top=False):
+    tab = "    " if is_top else "        "
     mdfile_name = mdfile_name.replace('\\','/')
     lines = ""
     for i, layer in enumerate(mdfile_name.split("/")):
         if i + 1 != len(mdfile_name.split("/")):
-            lines += "        " * (i + 1) + "- " + layer + ":\n"
+            lines += tab * (i + 1) + "- " + layer + ":\n"
         else:
-            lines += "        " * (i + 1) + "- " + mdfile_name + "\n"
+            lines += tab * (i + 1) + "- " + mdfile_name + "\n"
     return lines
 
 def create_class(name: str, obj, options: dict):

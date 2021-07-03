@@ -209,6 +209,14 @@ that is is not tightly bound to any literal source.
 >          index.html
 >          ...
 
+## Custom Content
+
+AutoMacDoc is flexible, and is not limited to only generating a site from scratch.    
+Instead, it can be dynamically *integrated* with your custom content.  Once you 
+know how, it's easy to add your own pages, add more MkDocs Extensions, modify the
+site theme and more!  
+
+TODO: Fill in 
 
 ## Recommended Docstring
 **Code:**
