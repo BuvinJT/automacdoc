@@ -8,7 +8,7 @@ It is, itself written in [Python](https://python.org).
 ## Why was this project created?
 
 [MkDocs](https://mkdocs.org) is an amazing tool to generate a website with 
-[Markdown](https://en.wikipedia.org/wiki/Markdown). Until now, however, there 
+Markdown. Until now, however, there 
 was no tool for *auto generating* a MkDocs project from Python source.
 
 The typical starting point when comparing Python documentation generators, is
@@ -16,8 +16,10 @@ the standard library's [pydoc](https://docs.python.org/3/library/pydoc.html) mod
 While that tool is easy to use, it's not flexible, and the end result leaves 
 something to be desired. In contrast, many would consider the "gold standard" for
 auto generating Python documentation to be [Sphinx](https://www.sphinx-doc.org/).
-But that tool is complicated, and uses **reStructuredText**.
-Too bad reStructuredText *sucks*, **MarkDown** *rocks*!
+But that tool is complicated, and uses 
+[reStructuredText](https://en.wikipedia.org/wiki/ReStructuredText).
+Too bad reStructuredText *sucks*, 
+[Markdown](https://en.wikipedia.org/wiki/Markdown) *rocks*!
 
 As the real work involved in documenting your code will end up revolving
 around writing [Doc Strings](https://www.python.org/dev/peps/pep-0257/) one way 
@@ -211,12 +213,54 @@ that is is not tightly bound to any literal source.
 
 ## Custom Content
 
-AutoMacDoc is flexible, and is not limited to only generating a site from scratch.    
-Instead, it can be dynamically *integrated* with your custom content.  Once you 
-know how, it's easy to add your own pages, add more MkDocs Extensions, modify the
-site theme and more!  
+AutoMacDoc is not limited to only generating a site from scratch. Instead, it can 
+be dynamically *integrated* with your custom content.  Once you know how, it's 
+easy to add your own pages, to add more 
+MkDocs [extensions](https://www.mkdocs.org/user-guide/configuration/#markdown_extensions),
+to add [plugins](https://www.mkdocs.org/user-guide/configuration/#plugins), 
+modify the site [theme](https://www.mkdocs.org/user-guide/configuration/#theme)
+and more!  
 
-TODO: Fill in 
+**Update Mode**
+
+The easiest way to *start* an AutoMacDocs project is to first allow the tool to 
+create a basic site for you.  After that, you may edit the `mkdocs.yml` file
+which was generated.  When the tool is run again subsequently, it will detect
+the presence of that prior configuration, and then operate in "update mode".
+
+In "Update Mode", the only part of the `mkdocs.yml` which AutoMacDocs will
+modify is that found within the "Reference" section.  Anything else which you
+customized will be fully preserved and respected while MkDocs regenerates the
+site.      
+
+To learn more about how you may modify the `mkdocs.yml` file, see the 
+[MkDocs Configuration Guide](https://www.mkdocs.org/user-guide/configuration/).
+
+**Hybrid Mode**
+
+An alternative "Hybrid Mode" has also been provided. This a middle ground
+between starting from scratch or operating as a pure "update".
+
+To use this method:
+
+- Remove an existing `mkdocs.yml` file (if applicable)
+- Create a `docs` folder (if one does not exist)
+- Add **your own** Markdown files to the `docs` folder
+- Run AutoMacDoc!
+
+The result of this will be similiar to creating a whole new site, accept 
+your pre-existing Markdown files will be used to generate site pages
+and they will be automatically added to the top level of your table of contents! 
+
+**Home Page**
+
+When a vistor first browses to the site, its "Home" page will be displayed.
+This page is created from a Markdown file named `index.md` (named like a 
+default website page: `index.html`).
+
+If this file does not exist in your `docs` folder, AutoMacDoc will generate
+a simple placeholder for you. To revise the content of this page, simply
+edit, or replace, the `index.md` source.   
 
 ## Recommended Docstring
 **Code:**
