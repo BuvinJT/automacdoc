@@ -294,14 +294,35 @@ can now instantly add to your documentation, leveraging the power of many
 Once you have the source generated for a static website to display your amazing
 documentation, how do you make that available to your users / target audience?
 
-Well you may, of course, setup website hosting in any number of manners, which
-are well beyond the scope of this document. With that done, you could
-simply upload these files there.  That said, a very notable option for this
+Well you may, of course, setup website hosting in any number of manners (which
+are all well beyond the scope of this document!). With that done, you could
+simply upload the files there. That said, a very notable option for this
 specific purpose, which is free, fast, and easy, is to use
 [GitHub Pages](https://pages.github.com/).
 
 With GitHub Pages, you may create a *new* GitHub repository dedicated to the 
-site, or you may *add* a GitHub Pages site to an *existing* repository (e.g. your
-project source). Arguably, the latter makes more sense if the code you are 
-documenting is already on GitHub, or you intend to post it there. For more on this see:
-[Creating a GitHub Pages site](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site#creating-your-site)
+site, or you may *add* a GitHub Pages site to an *existing* repository (e.g. 
+your project source). Arguably, the latter makes more sense if the code you are 
+documenting is already on GitHub, or you intend to post it there. For more on 
+this see: [Creating a GitHub Pages site](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site#creating-your-site)
+
+Note that GitHub Pages allows you to serve your site from either the *root* of 
+the repository, or a sub directory named `docs`. There is no option to define
+this path yourself, or to use a directory named `site`.  
+
+While GitHub Pages supports Markdown based sites, and can therefore use a 
+`docs` directory with such content, it will then convert that to html via a 
+seperate mechanism from what you've already produced with MkDocs. If you would 
+like to add a GitHub Pages site to an *existing* repository, it is doubtful you
+would want it on the *root*, so in order to post your site as it appears locally, 
+you will need to place what is normally the "site" content in the `docs` 
+directory. Thankfully, this is easy to resolve! Simply rename your folders 
+and add the following lines to your `mkdocs.yalm` file:
+
+```
+docs_dir: docs_src
+site_dir: docs
+```
+
+AutoMacDocs will then auto generate Markdown into a `docs_src` folder and
+MkDocs will generate the website content within `docs`. Problem solved.

@@ -71,10 +71,10 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
     global _new_docs
     
     #print( "write_doc", src, mainfolder, options )
-    project_icon = "code"  # https://material.io/tools/icons/?style=baseline
-    project_name = mainfolder.split("/")[-1]
+    project_name = os.path.basename(os.path.abspath(mainfolder)) # resolves args e.g. simply "." for "this directory" 
 
-    doc_path = os.path.join(os.path.abspath(mainfolder), "docs")
+    yaml_path = os.path.join(mainfolder, 'mkdocs.yml')
+    doc_path = os.path.join(os.path.abspath(mainfolder), __docs_dir(yaml_path))
     if not os.path.isdir(doc_path): os.makedirs(doc_path)        
     for cur_path, _, files in os.walk(doc_path):
         rel_dir_path = os.path.relpath(cur_path, doc_path)
@@ -135,7 +135,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                     MAGIC_PROSE_COMMENT_END ):                    
                     try:    mdMap[mdfile_name]
                     except: mdMap[mdfile_name]=[]
-                    if len(source_lines)>0:        
+                    if len(source_lines) > 0:        
                         mdMap[mdfile_name].append((SRC,source_lines))
                         source_lines=[]                                                     
                     mdMap[mdfile_name].append((TXT,text_lines))                    
@@ -156,7 +156,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                             if text_lines is not None:
                                 mdMap[mdfile_name].append((TXT,text_lines))
                                 text_lines = None
-                            if len(source_lines)>0:        
+                            if len(source_lines) > 0:        
                                 mdMap[mdfile_name].append((SRC,source_lines))
                         mdfile_name=input_name
                         source_lines=[]             
@@ -171,7 +171,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                 if text_lines is not None:
                     mdMap[mdfile_name].append((TXT,text_lines))
                     text_lines = None
-                if len(source_lines)>0:
+                if len(source_lines) > 0:
                     mdMap[mdfile_name].append((SRC,source_lines))
         else:                
             mdfile_name = "%s.md" % (package_name,) 
@@ -287,8 +287,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
     if len(toc) == 0:
         raise ValueError("All the files seem invalid")
     
-    yml_path = os.path.join(mainfolder, 'mkdocs.yml')
-    write_mkdocs_yaml(yml_path, project_name, toc, doc_path)
+    write_mkdocs_yaml(yaml_path, project_name, toc, doc_path)
 
 def write_module(
     path_to_home: str,
@@ -481,7 +480,7 @@ def write_mkdocs_yaml(path_to_yaml: str, project_name: str, toc: str,
     yaml_tab = "    "
     ref_tab  = 2*yaml_tab
 
-    if  os.path.isfile(path_to_yaml):            
+    if os.path.isfile(path_to_yaml):            
         is_index_doc     = True
         ref_sec_prefix   = "- " + ref_sec_name
         prior_yaml_start = ""
@@ -985,7 +984,7 @@ def __parse_sec_for_names( module, all_names, package_path, snippet_lines ):
                       (package_path,), e)
         sys.path.remove(package_path)
         return None
-    #finally: sys.path.remove(package_path) # break things down stream...
+    #finally: sys.path.remove(package_path) # breaks things down stream...
     
     snippet_identifier_names = __get_identifier_names( ast_root_node )    
     #print( "snippet identifiers", snippet_identifier_names )
@@ -1009,6 +1008,16 @@ def __parse_sec_for_names( module, all_names, package_path, snippet_lines ):
                             
     return mod_info, class_info, func_info, var_info
 
+def __docs_dir(yaml_path: str):
+    docs_dir = 'docs'
+    docs_dir_prefix = "docs_dir:"
+    if os.path.isfile(yaml_path):            
+        with open(yaml_path, "r") as f:
+            for ln in f:
+                if ln.strip().startswith(docs_dir_prefix):
+                    docs_dir = ln.replace(docs_dir_prefix,'').strip()                     
+    return docs_dir
+                    
 # TODO: define this function correctly
 def __markdown_safe(obj): 
     return str(obj).replace('<','').replace('>','')
