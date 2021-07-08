@@ -39,11 +39,11 @@ object_method_name_md = (
     "### *obj*.**{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, args
 static_attribute_name_md = ( 
-    "### *{0}*.**{1}** *{2}* {{ #{1} data-toc-label={1} }}\n\n".format
-)  # class, name, type
+    "### *{0}*.**{1}** *{2}* **default value:** {3} {{ #{1} data-toc-label={1} }}\n\n".format
+)  # class, name, type, value
 object_attribute_name_md = ( 
-    "### *obj*.**{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, type
+    "### *obj*.**{0}** *{1}* **default value:** {2} {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, type, value
 
 var_md = ( 
     "### **{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
@@ -321,7 +321,7 @@ def write_module(
             for n, o in inspect.getmembers(module, inspect.isclass)]
     funs  = [create_fun(n, o, options)
             for n, o in inspect.getmembers(module, inspect.isfunction)]
-    gvars = [create_var(n, o, options)
+    gvars = [create_var(n, o, None, options)
             for n, o in __get_import_vars(module)]
 
     if not os.path.isdir(os.path.dirname(path_to_md)):
@@ -450,9 +450,9 @@ def write_attribute(md_file, att, is_static, options, clas=None):
         return
 
     md_file.writelines(
-        static_attribute_name_md(clas["name"],att["name"],att["type"])
+        static_attribute_name_md(clas["name"],att["name"],att["type"],att["value"])
         if is_static else
-        object_attribute_name_md(att["name"],att["type"])
+        object_attribute_name_md(att["name"],att["type"],att["value"])
     ) 
     #md_file.writelines(doc_md(att["doc"]))
     #if options.get("is_source_shown",False):
@@ -605,22 +605,45 @@ def create_class(name: str, obj, options: dict):
             if is_method: 
                 methods.append( (n,o) )
                 continue
-        except: pass                 
+        except: pass                         
         all_method_names.append(n)
         f = create_fun(n, o, options)        
-        if f: clas["class_methods"].append(f)        
+        if f: clas["class_methods"].append(f)
+                        
     # combine the methods already found in the functions list with those 
     # returned by inspect   
     methods.extend( inspect.getmembers(obj, inspect.ismethod) )
     methods.sort(key=operator.itemgetter(0))
+    defaultInst = None
     for n, o in methods:
         all_method_names.append(n)
-        f = create_fun(n, o, options)
-        if f: clas["instance_methods"].append(f)
-    builtin_names = __builtin_object_member_names()    
+        if n=='__init__':
+            (args, varargs, varkw, defaults, kwonlyargs, kwonlydefaults, 
+             annotations) = inspect.getfullargspec(o)
+            print( name, args, varargs, varkw, defaults, 
+                   kwonlyargs, kwonlydefaults, annotations )
+            parms = []
+            for arg in args:
+                #annot = annotations.get(arg)
+                parm = None
+                parms.append( str(parm) ) 
+            try: 
+                create_statement = "%s(%s)" % (name, ','.join(parms))
+                print("create_statement",create_statement)
+                defaultInst = eval( create_statement )
+            except: pass            
+            clas["init"] = None
+        else :
+            f = create_fun(n, o, options)
+            if f: clas["instance_methods"].append(f)
+    builtin_names = __builtin_object_member_names()
+    v = None    
     for n, o in inspect.getmembers(obj):        
         if n not in builtin_names and n not in all_method_names:
-            a = create_att(n, o, options)
+            #if defaultInst.hasattr(a):
+            if defaultInst: 
+                v = getattr(defaultInst, n, None)
+            a = create_att(n, o, v, options)
             if a: clas["class_attributes"].append(a)
 
     class ClassVisitor(ast.NodeVisitor):
@@ -637,7 +660,9 @@ def create_class(name: str, obj, options: dict):
                             name = target.attr
                             #if isinstance(statement.value, ast.Name):
                             #    value = str(statement.value.id)
-                            a = create_att(name, None, options)
+                            val =( getattr(defaultInst, name, None) 
+                                   if defaultInst else None )
+                            a = create_att(name, None, val, options)
                             if a: clas["instance_attributes"].append(a)
     with open(clas["path"],'r') as f: mod_source = f.read()            
     ClassVisitor().generic_visit(ast.parse(mod_source))
@@ -677,10 +702,10 @@ def create_fun(name: str, obj, options: dict):
     fun["args"] = inspect.signature(obj)
     return fun
 
-def create_var(name: str, obj, options: dict):
-    return create_att(name, obj, options)
+def create_var(name: str, obj, val, options: dict):
+    return create_att(name, obj, val, options)
 
-def create_att(name: str, obj, options: dict):
+def create_att(name: str, obj, val, options: dict):
     """
     Generate a dictionary that contains the information about an attribute
 
@@ -708,7 +733,7 @@ def create_att(name: str, obj, options: dict):
     att["name"]  = 'undefined' if name is None else name  
     att["obj"]   = obj
     att["type"]  = 'undefined' if obj is None else __markdown_safe(type(obj)) 
-    att["value"] = 0    
+    att["value"] = val    
     """
     try:    att["module"] = inspect.getmodule(obj).__name__
     except: att["module"] = None
@@ -840,7 +865,8 @@ def __get_import_func( module, funcname: str, options: dict ):
 
 def __get_import_var( module, varname: str, options: dict ):
     for n, o in __get_import_vars( module ):
-        if n==varname: return create_var(n, o, options)
+        v=None # TODO
+        if n==varname: return create_var(n, o, v, options)
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 
@@ -890,7 +916,7 @@ def __write_mod( md_file, module_path: str, class_name: str, options ):
                 for n, o in inspect.getmembers(module, inspect.isclass)]
         funs  = [create_fun(n, o, options)
                 for n, o in inspect.getmembers(module, inspect.isfunction)]
-        gvars = [create_var(n, o, options)
+        gvars = [create_var(n, o, None, options)
                 for n, o in __get_import_vars(module)]
         for c in clas:
             write_class(md_file, c, options)
