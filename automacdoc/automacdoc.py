@@ -560,7 +560,7 @@ def get_toc_lines_from_file_path(mdfile_name,is_top=False):
             lines += tab * (i + 1) + "- " + mdfile_name + "\n"
     return lines
 
-def create_class(name: str, obj, options: dict):
+def create_class(package_name, name: str, obj, options: dict):
     """
     Generate a dictionnary that contains the information about a class
 
@@ -615,6 +615,8 @@ def create_class(name: str, obj, options: dict):
     methods.extend( inspect.getmembers(obj, inspect.ismethod) )
     methods.sort(key=operator.itemgetter(0))
     defaultInst = None
+    mod = clas["module"]
+    path = clas["path"]
     for n, o in methods:
         all_method_names.append(n)
         if n=='__init__':
@@ -624,14 +626,20 @@ def create_class(name: str, obj, options: dict):
                    kwonlyargs, kwonlydefaults, annotations )
             parms = []
             for arg in args:
-                #annot = annotations.get(arg)
-                parm = None
-                parms.append( str(parm) ) 
+                if arg=='self': continue
+                annot = annotations.get(arg)                
+                parms.append( '%s()' % (annot.__name__,) if annot else 'None' ) 
             try: 
+                modDirPath = os.path.dirname(path)                
+                sys.path.insert(0, modDirPath) 
+                #print("modDirPath",modDirPath)
+                #print("import_statement","import %s" % (package_name,))
+                exec("from %s import %s" % (package_name, name))               
                 create_statement = "%s(%s)" % (name, ','.join(parms))
-                print("create_statement",create_statement)
+                #print("create_statement",create_statement)
                 defaultInst = eval( create_statement )
-            except: pass            
+            except Exception as e: 
+                __on_warn_exc("Can't create default constructed object",e)                
             clas["init"] = None
         else :
             f = create_fun(n, o, options)
@@ -829,12 +837,12 @@ def __get_import_by_path( path: str, other_paths: list=None,
     try:
         if is_refresh:
             sys.modules.pop(package_name,None)
-            importlib.invalidate_caches() 
+            importlib.invalidate_caches()
         return importlib.import_module(package_name)
     except Exception as e:
         __on_err_exc("cannot acquire module: %s from %s" % 
                      (package_name,path), e)
-    finally: [sys.path.remove(p) for p in paths]
+    #finally: [sys.path.remove(p) for p in paths]
     
 def __get_source_path( module, member_name ):
     for n, o in inspect.getmembers( module ):
@@ -855,9 +863,9 @@ def __get_import_class_names( module ):
 def __get_import_func_names( module ): 
     return [n for n,_ in inspect.getmembers(module, inspect.isfunction)]
 
-def __get_import_class( module, classname: str, options: dict ): 
+def __get_import_class( module, package_name, classname: str, options: dict ): 
     for n, o in inspect.getmembers(module, inspect.isclass):
-        if n==classname: return create_class(n, o, options)
+        if n==classname: return create_class(package_name, n, o, options)
 
 def __get_import_func( module, funcname: str, options: dict ): 
     for n, o in inspect.getmembers(module, inspect.isfunction):
@@ -934,7 +942,10 @@ def __write_mod( md_file, module_path: str, class_name: str, options ):
 def __write_class( md_file, module_path: str, class_name: str, options ):
     try:
         module = __get_import_by_path( module_path )
-        clas = __get_import_class( module, class_name, options )        
+        
+        package_name = os.path.splitext(os.path.basename(module_path))[0]
+
+        clas = __get_import_class( module, package_name, class_name, options )        
         if clas:
             write_class(md_file, clas, options)
             md_file.writelines("""\n______\n\n""")
