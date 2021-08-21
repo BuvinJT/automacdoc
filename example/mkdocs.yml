@@ -1,0 +1,24 @@
+site_name: example
+theme:
+  name: 'material'
+nav:
+    - Home: index.md
+    - Reference:
+        - Introduction.md
+        - Mini.md
+        - Shark.md
+        - Doc Strings.md
+        - Config Parser.md
+markdown_extensions:
+    - toc:
+        toc_depth: 3
+        permalink: True
+    - extra
+    - smarty
+    - codehilite
+    - admonition
+    - pymdownx.details
+    - pymdownx.superfences
+    - pymdownx.emoji
+    - pymdownx.inlinehilite
+    - pymdownx.magiclink

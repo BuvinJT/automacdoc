@@ -11,6 +11,7 @@ import operator
 import tempfile
 import subprocess
 import shutil
+from future.utils import string_types
 # ----------------
  
 RAW_MODE, MAGIC_MODE = range(2)
@@ -39,10 +40,10 @@ object_method_name_md = (
     "### *obj*.**{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, args
 static_attribute_name_md = ( 
-    "### *{0}*.**{1}** *{2}* **default value:** {3} {{ #{1} data-toc-label={1} }}\n\n".format
+    "### *{0}*.**{1}** *{2}* default: *{3}* {{ #{1} data-toc-label={1} }}\n\n".format
 )  # class, name, type, value
 object_attribute_name_md = ( 
-    "### *obj*.**{0}** *{1}* **default value:** {2} {{ #{0} data-toc-label={0} }}\n\n".format
+    "### *obj*.**{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, type, value
 
 var_md = ( 
@@ -615,32 +616,25 @@ def create_class(package_name, name: str, obj, options: dict):
     methods.extend( inspect.getmembers(obj, inspect.ismethod) )
     methods.sort(key=operator.itemgetter(0))
     defaultInst = None
-    mod = clas["module"]
-    path = clas["path"]
     for n, o in methods:
         all_method_names.append(n)
         if n=='__init__':
-            (args, varargs, varkw, defaults, kwonlyargs, kwonlydefaults, 
+            (args, 
+             varargs, varkw, defaults, kwonlyargs, kwonlydefaults,  
              annotations) = inspect.getfullargspec(o)
-            print( name, args, varargs, varkw, defaults, 
-                   kwonlyargs, kwonlydefaults, annotations )
+            #print( name, args, varargs, varkw, defaults, 
+            #       kwonlyargs, kwonlydefaults, annotations )
             parms = []
             for arg in args:
                 if arg=='self': continue
                 annot = annotations.get(arg)                
                 parms.append( '%s()' % (annot.__name__,) if annot else 'None' ) 
             try: 
-                modDirPath = os.path.dirname(path)                
-                sys.path.insert(0, modDirPath) 
-                #print("modDirPath",modDirPath)
-                #print("import_statement","import %s" % (package_name,))
                 exec("from %s import %s" % (package_name, name))               
                 create_statement = "%s(%s)" % (name, ','.join(parms))
-                #print("create_statement",create_statement)
                 defaultInst = eval( create_statement )
             except Exception as e: 
                 __on_warn_exc("Can't create default constructed object",e)                
-            clas["init"] = None
         else :
             f = create_fun(n, o, options)
             if f: clas["instance_methods"].append(f)
@@ -648,7 +642,6 @@ def create_class(package_name, name: str, obj, options: dict):
     v = None    
     for n, o in inspect.getmembers(obj):        
         if n not in builtin_names and n not in all_method_names:
-            #if defaultInst.hasattr(a):
             if defaultInst: 
                 v = getattr(defaultInst, n, None)
             a = create_att(n, o, v, options)
@@ -668,9 +661,9 @@ def create_class(package_name, name: str, obj, options: dict):
                             name = target.attr
                             #if isinstance(statement.value, ast.Name):
                             #    value = str(statement.value.id)
-                            val =( getattr(defaultInst, name, None) 
+                            obj =( getattr(defaultInst, name, None) 
                                    if defaultInst else None )
-                            a = create_att(name, None, val, options)
+                            a = create_att(name, obj, obj, options)
                             if a: clas["instance_attributes"].append(a)
     with open(clas["path"],'r') as f: mod_source = f.read()            
     ClassVisitor().generic_visit(ast.parse(mod_source))
@@ -737,11 +730,16 @@ def create_att(name: str, obj, val, options: dict):
     if ignore_prefix is not None and name[:len(ignore_prefix)]==ignore_prefix:
         return None
 
+    if isinstance(val,string_types):
+        print(name, val,"len",len(val))        
+        val = ('"&lt;empty string&gt;"'  if len(val)==0 else 
+               '"%s"'.format(val) )    
+
     att = {}
-    att["name"]  = 'undefined' if name is None else name  
+    att["name"]  = '<undefined name>' if name is None else name  
     att["obj"]   = obj
-    att["type"]  = 'undefined' if obj is None else __markdown_safe(type(obj)) 
-    att["value"] = val    
+    att["type"]  = __markdown_safe(type(obj)) 
+    att["value"] = __markdown_safe(val)
     """
     try:    att["module"] = inspect.getmodule(obj).__name__
     except: att["module"] = None

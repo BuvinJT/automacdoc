@@ -95,6 +95,7 @@ class Shark:
         self.name=name
         self._protected_name=name+'-pro'
         self.__private_name=name+'-pri'
+        self.favorite_food=None
                 
     def be_awesome(self):
         """
