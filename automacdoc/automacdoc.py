@@ -322,7 +322,7 @@ def write_module(
             for n, o in inspect.getmembers(module, inspect.isclass)]
     funs  = [create_fun(n, o, options)
             for n, o in inspect.getmembers(module, inspect.isfunction)]
-    gvars = [create_var(n, o, None, options)
+    gvars = [create_var(n, o, None, None, options)  # TODO: Fill in val/doc
             for n, o in __get_import_vars(module)]
 
     if not os.path.isdir(os.path.dirname(path_to_md)):
@@ -433,9 +433,7 @@ def write_variable(md_file, var, options):
         return
 
     md_file.writelines(var_md(var["name"],var["type"])) 
-    #md_file.writelines(doc_md(var["doc"]))
-    #if options.get("is_source_shown",False):
-    #    md_file.writelines(source_md(var["source"]))    
+    md_file.writelines(doc_md(var["doc"]))
 
 def write_attribute(md_file, att, is_static, options, clas=None):
     """
@@ -455,9 +453,7 @@ def write_attribute(md_file, att, is_static, options, clas=None):
         if is_static else
         object_attribute_name_md(att["name"],att["type"],att["value"])
     ) 
-    #md_file.writelines(doc_md(att["doc"]))
-    #if options.get("is_source_shown",False):
-    #    md_file.writelines(source_md(att["source"]))    
+    md_file.writelines(doc_md(att["doc"]))
 
 def write_functions_header(md_file): md_file.writelines(all_funcs_md())
 
@@ -644,7 +640,8 @@ def create_class(package_name, name: str, obj, options: dict):
         if n not in builtin_names and n not in all_method_names:
             if defaultInst: 
                 v = getattr(defaultInst, n, None)
-            a = create_att(n, o, v, options)
+            d = None #TODO
+            a = create_att(n, o, v, d, options)
             if a: clas["class_attributes"].append(a)
 
     class ClassVisitor(ast.NodeVisitor):
@@ -653,8 +650,8 @@ def create_class(package_name, name: str, obj, options: dict):
             
     class InitVisitor(ast.NodeVisitor):
         def visit_FunctionDef(self, node):
-            if node.name != '__init__': return 
-            for statement in node.body:
+            if node.name != '__init__': return
+            for i, statement in enumerate(node.body):                
                 if isinstance(statement, ast.Assign):
                     for target in statement.targets:
                         if isinstance(target, ast.Attribute):
@@ -663,8 +660,15 @@ def create_class(package_name, name: str, obj, options: dict):
                             #    value = str(statement.value.id)
                             obj =( getattr(defaultInst, name, None) 
                                    if defaultInst else None )
-                            a = create_att(name, obj, obj, options)
+                            try:    next_statement=node.body[i+1]
+                            except: next_statement=None
+                            if( isinstance(next_statement, ast.Expr) and 
+                                isinstance(next_statement.value, ast.Str) ):
+                                doc = next_statement.value.s
+                            else: doc = None    
+                            a = create_att(name, obj, obj, doc, options)
                             if a: clas["instance_attributes"].append(a)
+                                
     with open(clas["path"],'r') as f: mod_source = f.read()            
     ClassVisitor().generic_visit(ast.parse(mod_source))
                         
@@ -703,10 +707,10 @@ def create_fun(name: str, obj, options: dict):
     fun["args"] = inspect.signature(obj)
     return fun
 
-def create_var(name: str, obj, val, options: dict):
-    return create_att(name, obj, val, options)
+def create_var(name: str, obj, val, doc, options: dict):
+    return create_att(name, obj, val, doc, options)
 
-def create_att(name: str, obj, val, options: dict):
+def create_att(name: str, obj, val, doc, options: dict):
     """
     Generate a dictionary that contains the information about an attribute
 
@@ -718,10 +722,7 @@ def create_att(name: str, obj, val, options: dict):
     **Returns**
     > `dict` -- with keys:
     >  - *name*, *obj* -- the attribute name and object as returned by `inspect.getmembers`
-    >  - *module* -- name of the module
-    >  - *path* -- path of the module file
     >  - *doc* -- docstring of the attribute
-    >  - *source* -- source code of the attribute    
     >  - *type* -- type of the attribute
     >  - *value* -- value of the attribute
     """
@@ -731,7 +732,6 @@ def create_att(name: str, obj, val, options: dict):
         return None
 
     if isinstance(val,string_types):
-        print(name, val,"len",len(val))        
         val = ('"&lt;empty string&gt;"'  if len(val)==0 else 
                '"%s"'.format(val) )    
 
@@ -740,25 +740,13 @@ def create_att(name: str, obj, val, options: dict):
     att["obj"]   = obj
     att["type"]  = __markdown_safe(type(obj)) 
     att["value"] = __markdown_safe(val)
-    """
-    try:    att["module"] = inspect.getmodule(obj).__name__
-    except: att["module"] = None
-    try:    att["path"] = inspect.getmodule(obj).__file__
-    except: att["path"] = None
-    try:    att["doc"] = inspect.getdoc(obj) or ""
-    except: att["doc"] = None
-    try:    att["source"] = inspect.getsource(obj)
-    except: att["source"] = None
-    """    
-    att["module"] = None
-    att["path"] = None
-    att["doc"] = None
-    att["source"] = None
+    att["doc"]   = doc
+    
     return att
 
 def rm_docstring_from_source(source):
     """
-    Remote the docstring from the source code of a function or a class
+    Remove the docstring from the source code of a function or a class
 
     **Parameters**
     > **source:** `str` -- Source code of a function or a class
@@ -872,7 +860,8 @@ def __get_import_func( module, funcname: str, options: dict ):
 def __get_import_var( module, varname: str, options: dict ):
     for n, o in __get_import_vars( module ):
         v=None # TODO
-        if n==varname: return create_var(n, o, v, options)
+        d=None # TODO
+        if n==varname: return create_var(n, o, v, d, options)
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 
@@ -921,8 +910,8 @@ def __write_mod( md_file, module_path: str, class_name: str, options ):
         clas  = [create_class(n, o, options)
                 for n, o in inspect.getmembers(module, inspect.isclass)]
         funs  = [create_fun(n, o, options)
-                for n, o in inspect.getmembers(module, inspect.isfunction)]
-        gvars = [create_var(n, o, None, options)
+                for n, o in inspect.getmembers(module, inspect.isfunction)]                                        
+        gvars = [create_var(n, o, None, None, options)  # TODO: Fill in val/doc
                 for n, o in __get_import_vars(module)]
         for c in clas:
             write_class(md_file, c, options)

@@ -93,9 +93,16 @@ class Shark:
 
         """
         self.name=name
+        """The name helps us to identify the particular animal."""
+        
         self._protected_name=name+'-pro'
         self.__private_name=name+'-pri'
+        
         self.favorite_food=None
+        """
+        The attribute favorite_food is a optional.
+        You may assign its value post construction.
+        """
                 
     def be_awesome(self):
         """
