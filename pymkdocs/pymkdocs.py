@@ -744,7 +744,7 @@ def create_att(name: str, obj, val, doc, options: dict):
     att["obj"]   = obj
     att["type"]  = __markdown_safe(type(obj)) 
     att["value"] = __markdown_safe(val)
-    att["doc"]   = doc
+    att["doc"]   = doc or ""
     
     return att
 
