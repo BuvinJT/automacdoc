@@ -100,11 +100,16 @@ class Shark:
         
         self.favorite_food=None
         """
-        The attribute favorite_food is a optional.
+        The attribute `favorite_food` is optional.
         You may assign its value post construction.
+        Example:
+        
+            man_eater = Shark( "Jaws" )
+            man_eater.favorite_food = "humans"
         """
                 
     def be_awesome(self):
+        
         """
         Do what sharks do
 
@@ -116,4 +121,10 @@ class Shark:
 
         > `None`
         """
+        
+        # this comment should be the first line line in the docs source code 
         print("The shark is being awesome.")
+        """
+        This comment should remain visible the in docs source code too! 
+        """
+

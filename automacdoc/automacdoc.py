@@ -16,14 +16,19 @@ from future.utils import string_types
  
 RAW_MODE, MAGIC_MODE = range(2)
 
+TAB           = '\t'
+TAB_SPACES    = '    '
+NEW_LINE      = '\n'
+TRIPLE_DOUBLE = '"""'
+
 MAGIC_START_DOC_COMMENT     = '# docs >'
 MAGIC_APPEND_DOC_COMMENT    = '# docs >>'
 
 MAGIC_PROSE_COMMENT_START   = '""" docs : prose'
-MAGIC_PROSE_COMMENT_END     = '"""'
+MAGIC_PROSE_COMMENT_END     = TRIPLE_DOUBLE
 
 MAGIC_VIRTUAL_COMMENT_START = '""" docs : virtual'
-MAGIC_VIRTUAL_COMMENT_END   = '"""'
+MAGIC_VIRTUAL_COMMENT_END   = TRIPLE_DOUBLE
 
 MAGIC_NULL                  = 'null'
 MAGIC_MODDOC_COMMENT        = '# docs : __doc__' 
@@ -104,7 +109,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             with open( magic_init_path, 'r' ) as f: init_content=f.read()
         except Exception as e:
             __on_err_exc("cannot read from path: %s" % (magic_init_path,), e)
-        lines = init_content.split('\n')
+        lines = init_content.split(NEW_LINE)
         mdfile_name = None        
         is_virtual_mode=False
         if MAGIC_START_DOC_COMMENT in init_content:
@@ -190,7 +195,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             tmp_pkg_path = os.path.join(tmp_dir_path,package_name)
             shutil.copytree(package_path,tmp_pkg_path)
             tmp_file_path = os.path.join(tmp_pkg_path,'__init__.py')                    
-            virtual_source = '\n'.join(_to_virtual_lines(lines))
+            virtual_source = NEW_LINE.join(_to_virtual_lines(lines))
             with open( tmp_file_path, 'w' ) as f: f.write( virtual_source )
             if not orginal_wrkdir: orginal_wrkdir = os.path.abspath(os.curdir)
             os.chdir(tmp_dir_path)   
@@ -227,8 +232,8 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                     if sec_lines[0]==MAGIC_MODDOC_COMMENT:
                         md_file.write(magic_moddoc)
                         continue
-                    md_file.write('\n'.join(sec_lines))
-                    md_file.write('\n')        
+                    md_file.write(NEW_LINE.join(sec_lines))
+                    md_file.write(NEW_LINE)        
                 if sec_type==SRC:             
                     parsed = __parse_sec_for_names( 
                         module, all_names, package_path, sec_lines )
@@ -369,7 +374,7 @@ def write_class(md_file, clas, options):
         for m in clas["instance_attributes"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
 
-    md_file.writelines("\n")
+    md_file.writelines(NEW_LINE)
 
     for m in clas["class_attributes"]:
         write_attribute(md_file, m, True, options, clas)    
@@ -474,8 +479,7 @@ def write_mkdocs_yaml(path_to_yaml: str, project_name: str, toc: str,
     global _new_docs
     
     ref_sec_name = "Reference"
-    yaml_tab = "    "
-    ref_tab  = 2*yaml_tab
+    ref_tab  = 2*TAB_SPACES
 
     if os.path.isfile(path_to_yaml):            
         is_index_doc     = True
@@ -502,8 +506,8 @@ def write_mkdocs_yaml(path_to_yaml: str, project_name: str, toc: str,
         toc_docs.insert(0,'index.md') 
         nav = ''         
         toc_fmt = '- {0}: {1}\n'
-        home_entry = yaml_tab + toc_fmt.format('Home','index.md')
-        ref_entry = yaml_tab + toc_fmt.format(ref_sec_name,'')
+        home_entry = TAB_SPACES + toc_fmt.format('Home','index.md')
+        ref_entry = TAB_SPACES + toc_fmt.format(ref_sec_name,'')
         for doc in toc_docs:
             if doc in _new_docs: continue
             if doc=='index.md': nav += home_entry
@@ -547,14 +551,14 @@ Welcome to the {0} library documentation site!
     indexmd_file.close()
 
 def get_toc_lines_from_file_path(mdfile_name,is_top=False):
-    tab = "    " if is_top else "        "
+    tab = TAB_SPACES if is_top else 2*TAB_SPACES
     mdfile_name = mdfile_name.replace('\\','/')
     lines = ""
     for i, layer in enumerate(mdfile_name.split("/")):
         if i + 1 != len(mdfile_name.split("/")):
-            lines += tab * (i + 1) + "- " + layer + ":\n"
+            lines += tab * (i + 1) + "- " + layer + ":" + NEW_LINE
         else:
-            lines += tab * (i + 1) + "- " + mdfile_name + "\n"
+            lines += tab * (i + 1) + "- " + mdfile_name + NEW_LINE
     return lines
 
 def create_class(package_name, name: str, obj, options: dict):
@@ -664,7 +668,7 @@ def create_class(package_name, name: str, obj, options: dict):
                             except: next_statement=None
                             if( isinstance(next_statement, ast.Expr) and 
                                 isinstance(next_statement.value, ast.Str) ):
-                                doc = next_statement.value.s
+                                doc = set_indent( next_statement.value.s, 0 )                                
                             else: doc = None    
                             a = create_att(name, obj, obj, doc, options)
                             if a: clas["instance_attributes"].append(a)
@@ -744,7 +748,7 @@ def create_att(name: str, obj, val, doc, options: dict):
     
     return att
 
-def rm_docstring_from_source(source):
+def rm_docstring_from_source( source:str ):
     """
     Remove the docstring from the source code of a function or a class
 
@@ -754,17 +758,46 @@ def rm_docstring_from_source(source):
     **Returns**
     > `str` -- Source code of a class without docstring
     """
-    source = source.split('"""')
-    if len(source) > 1:
-        del source[1]  # remove docstring
-    source = "".join(source)
-    # to handle intendation inside functions and classes
-    source = source.split("\n")
-    nb_indent = len(source[0]) - len(source[0].lstrip())
-    for i in range(len(source)):
-        source[i] = "\t" + source[i][nb_indent:]
-    source = "\n".join(source)
-    return source
+    try:
+        # remove the docstring, but retain other triple double comments 
+        sections = source.split( TRIPLE_DOUBLE )
+        head = sections[0]
+        body = TRIPLE_DOUBLE.join( sections[2:] )
+        
+        # remove any trailing blank lines from head
+        def __slice_end( lines ):
+            for idx, ln in enumerate(reversed(lines)):
+                if ln.strip() != '': return len(lines)-idx 
+            return len(lines)
+        lines = head.split( NEW_LINE )                        
+        head = NEW_LINE.join( lines[:__slice_end( lines )] ) + NEW_LINE        
+        
+        # remove any leading blank lines from body
+        def __slice_start( lines ):
+            for idx, ln in enumerate(lines):
+                if ln.strip() != '': return idx 
+            return 0
+        lines = body.split( NEW_LINE )        
+        body = NEW_LINE.join( lines[__slice_start( lines ):] )
+                
+        # combine head and body, normalizing indent for resulting docs
+        return set_indent( head + body, 1 )
+    except: return source
+    
+def set_indent( s:str, lvl:int ):
+    if not isinstance( s, string_types ): return s
+    tabs = (lvl*TAB)
+    def __first_line( lines ):
+        for ln in lines:
+            if ln.strip() != '': return ln 
+        return lines[0]
+    lines = s.split(NEW_LINE)
+    first_line = __first_line( lines )
+    lop_len = len(first_line) - len(first_line.lstrip())
+    for i in range(len(lines)):
+        try: lines[i] = tabs + lines[i][lop_len:]
+        except: pass
+    return NEW_LINE.join(lines)
 
 def __get_module_path( module_name: str, is_extern_mem_space=False ):
     """
@@ -1001,7 +1034,7 @@ def __parse_sec_for_names( module, all_names, package_path, snippet_lines ):
     # get the identifiers which are only found in the code snippet 
     sys.path.insert(0, package_path)                    
     snippet_lines  = _to_virtual_lines(snippet_lines)
-    snippet_source = '\n'.join(snippet_lines)                    
+    snippet_source = NEW_LINE.join(snippet_lines)                    
     try: ast_root_node = ast.parse( snippet_source )    
     except Exception as e: 
         __on_warn_exc("failed to parse source snippet from package %s" % 
