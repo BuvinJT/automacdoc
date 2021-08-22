@@ -4,12 +4,12 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-     name='AutoMacDoc',
+     name='pymkdocs',
      version='0.4',
-     entry_points={"console_scripts": ["automacdoc = automacdoc.main:main"]},
-     author="Alexandre Kempf",
-     author_email="alexandre.kempf@¢ri-paris.org",
-     description="Automatic generation of documentation for python projects",
+     entry_points={"console_scripts": ["pymkdocs = pymkdocs.main:main"]},
+     author="BuvinJ",
+     author_email="buvintech@gmail.com",
+     description=("Documentation generator for Python, using markdown and MkDocs."),
      long_description=long_description,
      long_description_content_type="text/markdown",
      packages=setuptools.find_packages(),
@@ -20,4 +20,3 @@ setuptools.setup(
          "Operating System :: OS Independent",
      ],
  )
- # url="https://github.com/javatechy/dokr",

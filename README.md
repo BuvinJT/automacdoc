@@ -1,8 +1,8 @@
-# AutoMacDoc Utility
+# pyMkDocs Utility
 
-## What is AutoMacDoc?
-AutoMacDoc is a tool to generate documentation for Python modules or groups
-of functions. It extends the features of [MkDocs](https://mkdocs.org).
+## What is pyMkDocs?
+pyMkDocs is a tool to generate documentation for Python projects.
+It extends the features of [MkDocs](https://mkdocs.org).
 It is, itself written in [Python](https://python.org).
 
 ## Why was this project created?
@@ -28,34 +28,33 @@ you HAPPY for a long time to come!
 
 ## How do I install it?
 
-`pip install automacdoc`
+`pip install pymkdocs`
 
 ## Recipe to make it work:
   - Ingredients:
     - 1 folder containing Python source files (e.g. the `example` folder in this repo)
-    OR
-    - 1 fresh `pip install`
+    **OR** 1 fresh `pip install`
     - (OPTIONAL) custom Docstrings and/or "magic comments" included in source (see below)
  
   - Easy steps:
-    - Install automacdoc.
-    - Open a terminal and change to the project directory. Example: `cd automacdoc`
-    - Run automacdoc. Example: `automacdoc example/src example -r -c -s`
+    - Install pyMkDocs.
+    - Open a terminal and change to the project directory. Example: `cd pymkdocs`
+    - Run pyMkDocs. Example: `pymkdocs example/src example -r -c -s`
     
 Command line help:
 
 ```
-| AutoMacDoc |
+| pyMkDocs |
 This utility generates MkDocs websites from Python source code.
-Help:  automacdoc -h/--help
-Usage: automacdoc source destination [-m/-r] [-c] [-s]
+Help:  pymkdocs -h/--help
+Usage: pymkdocs source destination [-m/-r] [-c] [-s]
 -m: magic mode (default) / -r: raw mode
 -c: include source code
 -s: serve test site
 ```
  
 ## How does this work?
-AutoMacDoc analyzes your Python source and generates markdown files from them.
+pyMkDocs analyzes your Python source and generates markdown files from them.
 It then employs MkDocs to produce html based documentation from the markdown!
 This process creates:
   - a 'mkdocs.yml' file, which is a config file for [MkDocs](https://mkdocs.org)
@@ -64,7 +63,7 @@ This process creates:
 
 ### Raw Mode
 
-The easiest way to learn to use AutoMacDoc may be to first run the example 
+The easiest way to learn to use pyMkDocs may be to first run the example 
 provided in "Raw Mode". Pass the `-r` switch on the command line to enable 
 this option. Using this method for generating the documentation, the entire
 directory tree for a source path specified is recursively scanned and all 
@@ -93,7 +92,7 @@ will be indexed by the doc generator's parser / inspector.
 The command line argument passed for the "source" argument may simply be the 
 name of an import. That argument does not have to be the path to its directory, 
 when using this mode. Therefore, after "pip installing" any library (including
-from remote or *local* sources), you could follow that up by running `automacdoc` 
+from remote or *local* sources), you could follow that up by running `pyMkDocs` 
 against it *by import name*!     
 
 As a bonus, when using this mode, "magic comments" (using syntax defined for this
@@ -191,12 +190,12 @@ that is is not tightly bound to any literal source.
 
 ## Minimal project layout
 
-  - before AutoMacDoc:
+  - before pyMkDocs:
 
 >      src/
 >          ...         # Other python files or folders
 
-  - after AutoMacDoc:
+  - after pyMkDocs:
 
 >      mkdocs.yml      # The configuration file.
 >
@@ -213,7 +212,7 @@ that is is not tightly bound to any literal source.
 
 ## Custom Content
 
-AutoMacDoc is not limited to only generating a site from scratch. Instead, it can 
+pyMkDocs is not limited to only generating a site from scratch. Instead, it can 
 be dynamically *integrated* with your custom content.  Once you know how, it's 
 easy to add your own pages, to add more 
 MkDocs [extensions](https://www.mkdocs.org/user-guide/configuration/#markdown_extensions),
@@ -223,12 +222,12 @@ and more!
 
 **Update Mode**
 
-The easiest way to *start* an AutoMacDocs project is to first allow the tool to 
+The easiest way to *start* an pyMkDocs project is to first allow the tool to 
 create a basic site for you.  After that, you may edit the `mkdocs.yml` file
 which was generated.  When the tool is run again subsequently, it will detect
 the presence of that prior configuration, and then operate in "update mode".
 
-In "Update Mode", the only part of the `mkdocs.yml` which AutoMacDocs will
+In "Update Mode", the only part of the `mkdocs.yml` which pyMkDocs will
 modify is that found within the "Reference" section.  Anything else which you
 customized will be fully preserved and respected while MkDocs regenerates the
 site.      
@@ -246,7 +245,7 @@ To use this method:
 - Remove an existing `mkdocs.yml` file (if applicable)
 - Create a `docs` folder (if one does not exist)
 - Add **your own** Markdown files to the `docs` folder
-- Run AutoMacDoc!
+- Run pyMkDocs!
 
 The result of this will be similiar to creating a whole new site, accept 
 your pre-existing Markdown files will be used to generate site pages
@@ -258,11 +257,31 @@ When a vistor first browses to the site, its "Home" page will be displayed.
 This page is created from a Markdown file named `index.md` (named like a 
 default website page: `index.html`).
 
-If this file does not exist in your `docs` folder, AutoMacDoc will generate
+If this file does not exist in your `docs` folder, pyMkDocs will generate
 a simple placeholder for you. To revise the content of this page, simply
 edit, or replace, the `index.md` source.   
 
-## Recommended Docstring
+## Attribute Docstrings
+
+The formal standards for Python docstrings are defined in 
+[PEP-257](https://www.python.org/dev/peps/pep-0257/).
+They do NOT include "attribute docstrings". There is, therefore, no *official* means
+to document how to use class and module attributes. The primary reason for this
+is because a consensus could not be arrived upon as to what the cleanest
+means would be for developers to employ such a standard in practice. Following
+the rules for how this is done with modules, classes, and functions
+(adding triple double comments after the object signatures), seemed excessive
+or confusing to some. Further, there is a belief that attributes should be 
+"self documenting", by simply using good names for them.     
+
+That said, it has been suggested that *unofficial* documentation generators
+(such as this) may still wish to adhere to the standards proposed in the *rejected* 
+[PEP-224](https://www.python.org/dev/peps/pep-0224/) or 
+[PEP-258](https://www.python.org/dev/peps/pep-0258/#attribute-docstrings)
+regarding attributes. So, pyMkDocs recognizes those conventions and processes
+such comments when generating documentation.
+
+## Recommended Function Docstring
 **Code:**
 ```py3
 def fun(arg1: int, arg2: str = 'Hello World!'):
@@ -324,5 +343,5 @@ docs_dir: docs_src
 site_dir: docs
 ```
 
-AutoMacDocs will then auto generate Markdown into a `docs_src` folder and
+pyMkDocs will then auto generate Markdown into a `docs_src` folder and
 MkDocs will generate the website content within `docs`. Problem solved.
