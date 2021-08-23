@@ -1,6 +1,8 @@
 #import numpy as np
 
 MIN_SIZE=-1
+"""This is the minimum size allowed!"""
+
 _pro_min_size=-2
 __pri_min_size=-3
 

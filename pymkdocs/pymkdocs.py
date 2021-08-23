@@ -52,7 +52,7 @@ object_attribute_name_md = (
 )  # name, type, value
 
 var_md = ( 
-    "### **{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
+    "### **{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, type
 all_vars_md= (
     "## **Constants and Globals** {{ #Constants-and-Globals data-toc-label=\"Constants and Globals\" }}\n\n".format
@@ -394,9 +394,7 @@ def write_function(md_file, fun, options):
     > **fun:** `dict` -- function information organized as a dict (see `create_fun`)
 
     """
-    if fun is None:
-        return
-
+    if fun is None: return
     md_file.writelines(function_name_md(fun["name"], fun["args"]))
     md_file.writelines(doc_md(fun["doc"]))    
     if options.get("is_source_shown",False): 
@@ -412,9 +410,7 @@ def write_method(md_file, method, clas, is_static, options):
     > **class:** `dict` -- class information organized as a dict (see `create_fun`)
 
     """
-    if method is None:
-        return
-
+    if method is None: return
     md_file.writelines(
         static_method_name_md(clas["name"], method["name"], method["args"])
         if is_static else
@@ -434,10 +430,8 @@ def write_variable(md_file, var, options):
     > **options:** `dict` -- extended options
 
     """
-    if var is None:
-        return
-
-    md_file.writelines(var_md(var["name"],var["type"])) 
+    if var is None: return
+    md_file.writelines(var_md(var["name"],var["type"],var["value"])) 
     md_file.writelines(doc_md(var["doc"]))
 
 def write_attribute(md_file, att, is_static, options, clas=None):
@@ -450,9 +444,7 @@ def write_attribute(md_file, att, is_static, options, clas=None):
     > **options:** `dict` -- extended options
 
     """
-    if att is None:
-        return
-
+    if att is None: return
     md_file.writelines(
         static_attribute_name_md(clas["name"],att["name"],att["type"],att["value"])
         if is_static else
@@ -892,9 +884,9 @@ def __get_import_func( module, funcname: str, options: dict ):
 
 def __get_import_var( module, varname: str, options: dict ):
     for n, o in __get_import_vars( module ):
-        v=None # TODO
+        v=o                       
         d=None # TODO
-        if n==varname: return create_var(n, o, v, d, options)
+        if n==varname: return create_var(n, o, v, d, options)  
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 
@@ -961,10 +953,8 @@ def __write_mod( md_file, module_path: str, class_name: str, options ):
        
 def __write_class( md_file, module_path: str, class_name: str, options ):
     try:
-        module = __get_import_by_path( module_path )
-        
+        module = __get_import_by_path( module_path )        
         package_name = os.path.splitext(os.path.basename(module_path))[0]
-
         clas = __get_import_class( module, package_name, class_name, options )        
         if clas:
             write_class(md_file, clas, options)
