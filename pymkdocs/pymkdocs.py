@@ -327,7 +327,7 @@ def write_module(
             for n, o in inspect.getmembers(module, inspect.isclass)]
     funs  = [create_fun(n, o, options)
             for n, o in inspect.getmembers(module, inspect.isfunction)]
-    gvars = [create_var(n, o, None, None, options)  # TODO: Fill in val/doc
+    gvars = [create_var(n, o, o, __var_docstring(module,n), options)  # TODO: Fill in val/doc
             for n, o in __get_import_vars(module)]
 
     if not os.path.isdir(os.path.dirname(path_to_md)):
@@ -884,9 +884,12 @@ def __get_import_func( module, funcname: str, options: dict ):
 
 def __get_import_var( module, varname: str, options: dict ):
     for n, o in __get_import_vars( module ):
-        v=o                       
-        d=None # TODO
-        if n==varname: return create_var(n, o, v, d, options)  
+        if n==varname: 
+            return create_var(n, o, o, __var_docstring(module,n), options)  
+
+def __var_docstring( module, varname: str ):
+    print("__path__", module.__path__)
+    return None # TODO
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 
@@ -936,7 +939,7 @@ def __write_mod( md_file, module_path: str, class_name: str, options ):
                 for n, o in inspect.getmembers(module, inspect.isclass)]
         funs  = [create_fun(n, o, options)
                 for n, o in inspect.getmembers(module, inspect.isfunction)]                                        
-        gvars = [create_var(n, o, None, None, options)  # TODO: Fill in val/doc
+        gvars = [create_var(n, o, o, __var_docstring(module,n), options)  # TODO: Fill in val/doc
                 for n, o in __get_import_vars(module)]
         for c in clas:
             write_class(md_file, c, options)
