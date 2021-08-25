@@ -12,6 +12,7 @@ import tempfile
 import subprocess
 import shutil
 from future.utils import string_types
+from builtins import None
 # ----------------
  
 RAW_MODE, MAGIC_MODE = range(2)
@@ -888,8 +889,42 @@ def __get_import_var( module, varname: str, options: dict ):
             return create_var(n, o, o, __var_docstring(module,n), options)  
 
 def __var_docstring( module, varname: str ):
-    print("__path__", module.__path__)
-    return None # TODO
+
+    def __var_docstring( node, varname ):    
+        for i, statement in enumerate(node.body):                
+            if isinstance( statement, ast.Assign ):
+                if varname in statement.targets: 
+                    try:    next_statement=node.body[i+1]
+                    except: next_statement=None
+                    if( isinstance(next_statement, ast.Expr) and 
+                    isinstance(next_statement.value, ast.Str) ):
+                    return set_indent( next_statement.value.s, 0 )                                
+                    else: return None    
+        return False
+
+    def __get_import_module_name( node, varname ):    
+        for node in ast.walk( node ):
+            if isinstance( node, ast.ImportFrom ):               
+                names = [n.asname if n.asname else n.name  
+                         for n in node.names]
+                if varname in names: return node.module 
+        return None
+    
+    try: 
+        mod_source = inspect.getsource( module )
+        ast_root_node = ast.parse( mod_source )
+        docstring = __var_docstring( ast_root_node, varname )
+        if docstring == False:
+            module_name = __get_import_module_name( ast_root_node, varname )
+            if not module_name: 
+                raise RuntimeWarning("Can't find assignment or import")
+            import_module = __get_import_module( module_name )
+            return __var_docstring( import_module, varname )
+        else: return docstring        
+    except Exception as e:
+        __on_warn_exc("cannot find / parse source for variable %s" % 
+                      (varname), e) 
+        return None 
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 
