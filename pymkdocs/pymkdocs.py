@@ -12,7 +12,6 @@ import tempfile
 import subprocess
 import shutil
 from future.utils import string_types
-from builtins import None
 # ----------------
  
 RAW_MODE, MAGIC_MODE = range(2)
@@ -890,32 +889,43 @@ def __get_import_var( module, varname: str, options: dict ):
 
 def __var_docstring( module, varname: str ):
 
-    def __var_docstring( node, varname ):    
-        for i, statement in enumerate(node.body):                
-            if isinstance( statement, ast.Assign ):
-                if varname in statement.targets: 
-                    try:    next_statement=node.body[i+1]
-                    except: next_statement=None
-                    if( isinstance(next_statement, ast.Expr) and 
-                    isinstance(next_statement.value, ast.Str) ):
-                    return set_indent( next_statement.value.s, 0 )                                
-                    else: return None    
-        return False
+    def __docstring( root_node, varname ):
+        """
+        Returns docstring (as str), 
+            or None if the variable is found but has no docstring
+            or False if the variable is not found 
+        Search only the top level of the root_node,
+        because the definition of this type of docstring is:  
+        "String literals occurring immediately after a simple assignment 
+        at the top level of a module, class, or __init__ method...". 
+        """
+        is_var_found = False
+        for child in ast.iter_child_nodes( root_node ):                      
+            if is_var_found:
+                if( isinstance( child, ast.Expr ) and 
+                    isinstance( child, ast.Str ) ):
+                    return set_indent( child.value.s, 0 )                                
+                else: return None                                
+            else :                              
+                is_var_found =( isinstance( child, ast.Assign ) and
+                                varname in child.targets )                         
+        return None if is_var_found else False 
 
-    def __get_import_module_name( node, varname ):    
-        for node in ast.walk( node ):
-            if isinstance( node, ast.ImportFrom ):               
+    def __get_import_module_name( root_node, varname ):
+        # search recursively, in case the import is conditional     
+        for child in ast.walk( root_node ):
+            if isinstance( child, ast.ImportFrom ):               
                 names = [n.asname if n.asname else n.name  
-                         for n in node.names]
-                if varname in names: return node.module 
+                         for n in child.names]
+                if varname in names: return child.module 
         return None
     
     try: 
         mod_source = inspect.getsource( module )
-        ast_root_node = ast.parse( mod_source )
-        docstring = __var_docstring( ast_root_node, varname )
+        root_node = ast.parse( mod_source )
+        docstring = __docstring( root_node, varname )
         if docstring == False:
-            module_name = __get_import_module_name( ast_root_node, varname )
+            module_name = __get_import_module_name( root_node, varname )
             if not module_name: 
                 raise RuntimeWarning("Can't find assignment or import")
             import_module = __get_import_module( module_name )
