@@ -4,7 +4,7 @@ import sys
 from subprocess import call, Popen
 import webbrowser
 import traceback
-from pymkdocs import write_doc, RAW_MODE, MAGIC_MODE
+from pymkdocs import __version__, write_doc, RAW_MODE, MAGIC_MODE
 
 def main(argv=None):
     args = __parse_args(sys.argv if argv is None else argv)
@@ -30,9 +30,10 @@ def __parse_args(argv):
     RAW_SWITCH         = "-r"     
     SOURCE_SWITCH      = "-c"
     SERVE_SWITCH       = "-s"
-    TITLE = "| pyMkDocs |"
-    DESCR = "This utility generates MkDocs websites from Python source code."
-    USAGE =("Help:  pymkdocs -h/--help\n" 
+    TITLE   = "| pyMkDocs |"
+    VERSION = "v.{0}".format( __version__ )
+    DESCR   = "This utility generates MkDocs websites from Python source code."
+    USAGE   =("Help:  pymkdocs -h/--help\n" 
             "Usage: pymkdocs source destination [{0}/{1}] [{2}] [{3}]\n"
             "{0}: magic mode (default) / {1}: raw mode\n"
             "{2}: include source code\n"
@@ -50,6 +51,7 @@ def __parse_args(argv):
         if is_help: break        
     if is_invalid or is_help:
         print(TITLE)
+        print(VERSION)
         print(DESCR)
         print(USAGE)
         return 1 if is_invalid else 0

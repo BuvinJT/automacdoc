@@ -331,7 +331,7 @@ this path yourself, or to use a directory named `site`.
 
 While GitHub Pages supports Markdown based sites, and can therefore use a 
 `docs` directory with such content, it will then convert that to html via a 
-seperate mechanism from what you've already produced with MkDocs. If you would 
+separate mechanism from what you've already produced with MkDocs. If you would 
 like to add a GitHub Pages site to an *existing* repository, it is doubtful you
 would want it on the *root*, so in order to post your site as it appears locally, 
 you will need to place what is normally the "site" content in the `docs` 

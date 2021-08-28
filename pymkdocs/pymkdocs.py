@@ -52,7 +52,7 @@ object_attribute_name_md = (
 )  # name, type, value
 
 var_md = ( 
-    "### **{0}** *{1}* {{ #{0} data-toc-label={0} }}\n\n".format
+    "### **{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, type
 all_vars_md= (
     "## **Constants and Globals** {{ #Constants-and-Globals data-toc-label=\"Constants and Globals\" }}\n\n".format
@@ -327,7 +327,7 @@ def write_module(
             for n, o in inspect.getmembers(module, inspect.isclass)]
     funs  = [create_fun(n, o, options)
             for n, o in inspect.getmembers(module, inspect.isfunction)]
-    gvars = [create_var(n, o, None, None, options)  # TODO: Fill in val/doc
+    gvars = [create_var(n, o, o, __var_docstring(module,n), options)  # TODO: Fill in val/doc
             for n, o in __get_import_vars(module)]
 
     if not os.path.isdir(os.path.dirname(path_to_md)):
@@ -394,9 +394,7 @@ def write_function(md_file, fun, options):
     > **fun:** `dict` -- function information organized as a dict (see `create_fun`)
 
     """
-    if fun is None:
-        return
-
+    if fun is None: return
     md_file.writelines(function_name_md(fun["name"], fun["args"]))
     md_file.writelines(doc_md(fun["doc"]))    
     if options.get("is_source_shown",False): 
@@ -412,9 +410,7 @@ def write_method(md_file, method, clas, is_static, options):
     > **class:** `dict` -- class information organized as a dict (see `create_fun`)
 
     """
-    if method is None:
-        return
-
+    if method is None: return
     md_file.writelines(
         static_method_name_md(clas["name"], method["name"], method["args"])
         if is_static else
@@ -434,10 +430,8 @@ def write_variable(md_file, var, options):
     > **options:** `dict` -- extended options
 
     """
-    if var is None:
-        return
-
-    md_file.writelines(var_md(var["name"],var["type"])) 
+    if var is None: return
+    md_file.writelines(var_md(var["name"],var["type"],var["value"])) 
     md_file.writelines(doc_md(var["doc"]))
 
 def write_attribute(md_file, att, is_static, options, clas=None):
@@ -450,9 +444,7 @@ def write_attribute(md_file, att, is_static, options, clas=None):
     > **options:** `dict` -- extended options
 
     """
-    if att is None:
-        return
-
+    if att is None: return
     md_file.writelines(
         static_attribute_name_md(clas["name"],att["name"],att["type"],att["value"])
         if is_static else
@@ -744,7 +736,7 @@ def create_att(name: str, obj, val, doc, options: dict):
     att["obj"]   = obj
     att["type"]  = __markdown_safe(type(obj)) 
     att["value"] = __markdown_safe(val)
-    att["doc"]   = doc
+    att["doc"]   = doc or ""
     
     return att
 
@@ -892,9 +884,63 @@ def __get_import_func( module, funcname: str, options: dict ):
 
 def __get_import_var( module, varname: str, options: dict ):
     for n, o in __get_import_vars( module ):
-        v=None # TODO
-        d=None # TODO
-        if n==varname: return create_var(n, o, v, d, options)
+        if n==varname: 
+            return create_var(n, o, o, __var_docstring(module,n), options)  
+
+def __var_docstring( module, varname: str ):
+
+    def __docstring( root_node, varname ):
+        """
+        Returns docstring (as str), 
+            or None if the variable is found but has no docstring
+            or False if the variable is not found 
+        Search only the top level of the root_node,
+        because the definition of this type of docstring is:  
+        "String literals occurring immediately after a simple assignment 
+        at the top level of a module, class, or __init__ method...". 
+        """
+        is_var_found = False
+        for child in ast.iter_child_nodes( root_node ):
+            if is_var_found:
+                if( isinstance( child, ast.Expr ) and 
+                    isinstance( child.value, ast.Str ) ):
+                    return set_indent( child.value.s, 0 )                                
+                else: return None                                
+            else :                              
+                if isinstance( child, ast.Assign ): 
+                    for target in child.targets:
+                        if isinstance( target, ast.Name ):
+                            is_var_found = target.id==varname
+                            if is_var_found: break           
+        return None if is_var_found else False 
+
+    def __get_import_module_name( root_node, varname ):
+        # search recursively, in case the import is conditional     
+        for child in ast.walk( root_node ):
+            if isinstance( child, ast.ImportFrom ):               
+                names = [n.asname if n.asname else n.name  
+                         for n in child.names]
+                if varname in names: return child.module 
+        return None
+   
+    #print( "__var_docstring", varname )    
+    try: 
+        mod_source = inspect.getsource( module )
+        root_node = ast.parse( mod_source )
+        docstring = __docstring( root_node, varname )
+        #print( "docstring", docstring )
+        if docstring == False:
+            module_name = __get_import_module_name( root_node, varname )
+            #print( "module_name", module_name )
+            if not module_name: 
+                raise RuntimeWarning("Can't find assignment or import")
+            import_module = __get_import_module( module_name )
+            return __var_docstring( import_module, varname )
+        else: return docstring        
+    except Exception as e:
+        __on_warn_exc("cannot find / parse source for variable %s" % 
+                      (varname), e) 
+        return None 
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 
@@ -944,7 +990,7 @@ def __write_mod( md_file, module_path: str, class_name: str, options ):
                 for n, o in inspect.getmembers(module, inspect.isclass)]
         funs  = [create_fun(n, o, options)
                 for n, o in inspect.getmembers(module, inspect.isfunction)]                                        
-        gvars = [create_var(n, o, None, None, options)  # TODO: Fill in val/doc
+        gvars = [create_var(n, o, o, __var_docstring(module,n), options)  # TODO: Fill in val/doc
                 for n, o in __get_import_vars(module)]
         for c in clas:
             write_class(md_file, c, options)
@@ -961,10 +1007,8 @@ def __write_mod( md_file, module_path: str, class_name: str, options ):
        
 def __write_class( md_file, module_path: str, class_name: str, options ):
     try:
-        module = __get_import_by_path( module_path )
-        
+        module = __get_import_by_path( module_path )        
         package_name = os.path.splitext(os.path.basename(module_path))[0]
-
         clas = __get_import_class( module, package_name, class_name, options )        
         if clas:
             write_class(md_file, clas, options)
