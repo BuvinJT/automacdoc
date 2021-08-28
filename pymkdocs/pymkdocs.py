@@ -900,15 +900,18 @@ def __var_docstring( module, varname: str ):
         at the top level of a module, class, or __init__ method...". 
         """
         is_var_found = False
-        for child in ast.iter_child_nodes( root_node ):                      
+        for child in ast.iter_child_nodes( root_node ):
             if is_var_found:
                 if( isinstance( child, ast.Expr ) and 
-                    isinstance( child, ast.Str ) ):
+                    isinstance( child.value, ast.Str ) ):
                     return set_indent( child.value.s, 0 )                                
                 else: return None                                
             else :                              
-                is_var_found =( isinstance( child, ast.Assign ) and
-                                varname in child.targets )                         
+                if isinstance( child, ast.Assign ): 
+                    for target in child.targets:
+                        if isinstance( target, ast.Name ):
+                            is_var_found = target.id==varname
+                            if is_var_found: break           
         return None if is_var_found else False 
 
     def __get_import_module_name( root_node, varname ):
@@ -919,13 +922,16 @@ def __var_docstring( module, varname: str ):
                          for n in child.names]
                 if varname in names: return child.module 
         return None
-    
+   
+    #print( "__var_docstring", varname )    
     try: 
         mod_source = inspect.getsource( module )
         root_node = ast.parse( mod_source )
         docstring = __docstring( root_node, varname )
+        #print( "docstring", docstring )
         if docstring == False:
             module_name = __get_import_module_name( root_node, varname )
+            #print( "module_name", module_name )
             if not module_name: 
                 raise RuntimeWarning("Can't find assignment or import")
             import_module = __get_import_module( module_name )
