@@ -582,10 +582,12 @@ def create_class(package_name, name: str, obj, options: dict):
     clas["doc"] = inspect.getdoc(obj) or ""
     clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
     clas["args"] = inspect.signature(obj)
-    clas["class_attributes"] = []
-    clas["class_methods"] = []
-    clas["instance_methods"] = []    
+    
+    clas["class_attributes"]    = []
+    clas["class_methods"]       = []
+    clas["instance_methods"]    = []    
     clas["instance_attributes"] = []        
+    
     methods = []
     all_method_names = []
     for n, o in inspect.getmembers(obj, inspect.isfunction):
@@ -614,7 +616,7 @@ def create_class(package_name, name: str, obj, options: dict):
             (args, 
              varargs, varkw, defaults, kwonlyargs, kwonlydefaults,  
              annotations) = inspect.getfullargspec(o)
-            #print( name, args, varargs, varkw, defaults, 
+        #print( name, args, varargs, varkw, defaults, 
             #       kwonlyargs, kwonlydefaults, annotations )
             parms = []
             for arg in args:
@@ -630,19 +632,49 @@ def create_class(package_name, name: str, obj, options: dict):
         else :
             f = create_fun(n, o, options)
             if f: clas["instance_methods"].append(f)
+    
+    # get class attributes         
     builtin_names = __builtin_object_member_names()
     v = None    
     for n, o in inspect.getmembers(obj):        
         if n not in builtin_names and n not in all_method_names:
             if defaultInst: 
                 v = getattr(defaultInst, n, None)
-            d = None #TODO
+            d = None # updated later via ast parsing            
             a = create_att(n, o, v, d, options)
             if a: clas["class_attributes"].append(a)
-
+     
+    # use ast for additional inspection / parsing  
     class ClassVisitor(ast.NodeVisitor):
-        def visit_ClassDef(self, node):
-            if node.name==name: InitVisitor().visit(node)
+        def visit_ClassDef(self, node):            
+            if node.name==name:
+                # "back fill" class attribute docstrings
+                self.__get_class_att_docstrings( node )
+                # get instance attributes
+                InitVisitor().visit(node)
+
+        def __get_class_att_docstrings(self, node):
+            for i, statement in enumerate(node.body):                
+                if isinstance(statement, ast.Assign):
+                    for target in statement.targets:                        
+                        att_names=[]
+                        if isinstance(target, ast.Name):
+                            att_names.append( target.id )
+                        elif isinstance(target, ast.Tuple):
+                            for el in target.elts:
+                                if isinstance(el, ast.Name):
+                                    att_names.append( el.id )
+                        if len(att_names) > 0:                                    
+                            try:    next_statement=node.body[i+1]
+                            except: next_statement=None
+                            if( isinstance(next_statement, ast.Expr) and 
+                                isinstance(next_statement.value, ast.Str) ):
+                                doc = set_indent( next_statement.value.s, 0 )                                                            
+                                for att_name in att_names:
+                                    for j, att in enumerate(clas["class_attributes"]):
+                                        if att["name"]==att_name:
+                                            clas["class_attributes"][j]["doc"] = doc
+                                            break
             
     class InitVisitor(ast.NodeVisitor):
         def visit_FunctionDef(self, node):
@@ -663,8 +695,7 @@ def create_class(package_name, name: str, obj, options: dict):
                                 doc = set_indent( next_statement.value.s, 0 )                                
                             else: doc = None    
                             a = create_att(name, obj, obj, doc, options)
-                            if a: clas["instance_attributes"].append(a)
-                                
+                            if a: clas["instance_attributes"].append(a)                                
     with open(clas["path"],'r') as f: mod_source = f.read()            
     ClassVisitor().generic_visit(ast.parse(mod_source))
                         

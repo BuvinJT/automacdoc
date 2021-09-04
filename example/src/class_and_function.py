@@ -39,10 +39,14 @@ def maxi2pourvoir(x, y):
 class Shark:
 
     SMALL, MEDIUM, LARGE = range(3)
+    """A constant used to represent size."""
     
     class Type: White, Hammerhead, Mako = range(3)
     
-    _counter=0
+    shark_counter=0
+    """This is a static counter, keeping track of how many sharks exist."""
+    
+    _sleeping_counter=0
     __current=None
 
     @staticmethod
