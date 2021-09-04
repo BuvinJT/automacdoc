@@ -38,6 +38,9 @@ TXT,SRC=range(2)
 class_name_md = (
     "## **{0}**`#!py3 class` {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name
+constructor_md = (
+    "### **Constructor** {{ #constructor-{0} data-toc-label=Constructor }}\n\n".format
+)  # name
 static_method_name_md = (
     "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
 )  # class, name, args
@@ -357,6 +360,10 @@ def write_class(md_file, clas, options):
     md_file.writelines(class_name_md(clas["name"]))
     md_file.writelines(doc_md(clas["doc"]))
 
+    md_file.writelines(constructor_md(clas["name"]))
+    md_file.writelines("*{0}*{1}\n\n".format(clas["name"],clas["args"]))            
+    md_file.writelines(doc_md(clas["init_doc"]))
+
     if len(clas["class_attributes"]) > 0:
         md_file.writelines("\n**Class/Static Attributes:** \n\n")
         for m in clas["class_attributes"]:
@@ -568,6 +575,7 @@ def create_class(package_name, name: str, obj, options: dict):
     >  - *module* -- name of the module
     >  - *path* -- path of the module file
     >  - *doc* -- docstring of the class
+    >  - *init_doc* -- docstring of the __init_ method
     >  - *source* -- source code of the class
     >  - *args* -- arguments of the class as a `inspect.signature` object
     >  - *functions* -- list of functions that are in the class (formatted as dict)
@@ -579,10 +587,11 @@ def create_class(package_name, name: str, obj, options: dict):
     clas["obj"] = obj
     clas["module"] = inspect.getmodule(obj).__name__
     clas["path"] = inspect.getmodule(obj).__file__
-    clas["doc"] = inspect.getdoc(obj) or ""
+    clas["doc"] = inspect.getdoc(obj) or ""    
     clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
     clas["args"] = inspect.signature(obj)
     
+    clas["init_doc"]            = ""
     clas["class_attributes"]    = []
     clas["class_methods"]       = []
     clas["instance_methods"]    = []    
@@ -613,6 +622,7 @@ def create_class(package_name, name: str, obj, options: dict):
     for n, o in methods:
         all_method_names.append(n)
         if n=='__init__':
+            clas["init_doc"] = inspect.getdoc(o)
             (args, 
              varargs, varkw, defaults, kwonlyargs, kwonlydefaults,  
              annotations) = inspect.getfullargspec(o)
