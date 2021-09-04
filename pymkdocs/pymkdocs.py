@@ -38,9 +38,12 @@ TXT,SRC=range(2)
 class_name_md = (
     "## **{0}**`#!py3 class` {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name
-constructor_md = (
-    "### **Constructor** {{ #constructor-{0} data-toc-label=Constructor }}\n\n".format
+constructor_hdr_md = (
+    "### **Constructor** {{ #{0}-constructor data-toc-label=Constructor }}\n\n".format
 )  # name
+constructor_md = (
+"*{0}*`#!py3 {1}`\n\n".format
+)  # name, args
 static_method_name_md = (
     "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
 )  # class, name, args
@@ -360,18 +363,11 @@ def write_class(md_file, clas, options):
     md_file.writelines(class_name_md(clas["name"]))
     md_file.writelines(doc_md(clas["doc"]))
 
-    md_file.writelines(constructor_md(clas["name"]))
-    md_file.writelines("*{0}*{1}\n\n".format(clas["name"],clas["args"]))            
-    md_file.writelines(doc_md(clas["init_doc"]))
+    if clas["is_init"]:
+        md_file.writelines(constructor_hdr_md(clas["name"]))
+        md_file.writelines(constructor_md(clas["name"],clas["args"]))            
+        md_file.writelines(doc_md(clas["init_doc"]))
 
-    if len(clas["class_attributes"]) > 0:
-        md_file.writelines("\n**Class/Static Attributes:** \n\n")
-        for m in clas["class_attributes"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
-    if len(clas["class_methods"]) > 0:
-        md_file.writelines("\n**Class/Static Methods:** \n\n")
-        for f in clas["class_methods"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(f["name"]))
     if len(clas["instance_methods"]) > 0:
         md_file.writelines("\n**Instance Methods:** \n\n")
         for m in clas["instance_methods"]:
@@ -381,16 +377,26 @@ def write_class(md_file, clas, options):
         for m in clas["instance_attributes"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
 
+    if len(clas["class_methods"]) > 0:
+        md_file.writelines("\n**Class/Static Methods:** \n\n")
+        for f in clas["class_methods"]:
+            md_file.writelines(" - [`{0}`](#{0})\n".format(f["name"]))
+    if len(clas["class_attributes"]) > 0:
+        md_file.writelines("\n**Class/Static Attributes:** \n\n")
+        for m in clas["class_attributes"]:
+            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
+
     md_file.writelines(NEW_LINE)
 
-    for m in clas["class_attributes"]:
-        write_attribute(md_file, m, True, options, clas)    
-    for f in clas["class_methods"]:
-        write_method( md_file, f, clas, True, options)  
     for m in clas["instance_methods"]:
         write_method(md_file, m, clas, False, options)    
     for m in clas["instance_attributes"]:
         write_attribute(md_file, m, False, options, clas)    
+
+    for f in clas["class_methods"]:
+        write_method( md_file, f, clas, True, options)  
+    for m in clas["class_attributes"]:
+        write_attribute(md_file, m, True, options, clas)    
 
 def write_function(md_file, fun, options):
     """
@@ -577,20 +583,24 @@ def create_class(package_name, name: str, obj, options: dict):
     >  - *doc* -- docstring of the class
     >  - *init_doc* -- docstring of the __init_ method
     >  - *source* -- source code of the class
+    >  - *is_init* -- class definition includes __init__
     >  - *args* -- arguments of the class as a `inspect.signature` object
     >  - *functions* -- list of functions that are in the class (formatted as dict)
     >  - *methods* -- list of methods that are in the class (formatted as dict)
     >  - *attributes* -- list of attributes that are in the class (formatted as dict)
     """
     clas = {}
-    clas["name"] = name
-    clas["obj"] = obj
-    clas["module"] = inspect.getmodule(obj).__name__
-    clas["path"] = inspect.getmodule(obj).__file__
-    clas["doc"] = inspect.getdoc(obj) or ""    
-    clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
-    clas["args"] = inspect.signature(obj)
     
+    clas["name"]   = name
+    clas["obj"]    = obj
+    
+    clas["module"] = inspect.getmodule(obj).__name__
+    clas["path"]   = inspect.getmodule(obj).__file__
+    clas["doc"]    = inspect.getdoc(obj) or ""    
+    clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
+    clas["args"]   = inspect.signature(obj)
+        
+    clas["is_init"]             = False
     clas["init_doc"]            = ""
     clas["class_attributes"]    = []
     clas["class_methods"]       = []
@@ -689,6 +699,7 @@ def create_class(package_name, name: str, obj, options: dict):
     class InitVisitor(ast.NodeVisitor):
         def visit_FunctionDef(self, node):
             if node.name != '__init__': return
+            clas["is_init"] = True
             for i, statement in enumerate(node.body):                
                 if isinstance(statement, ast.Assign):
                     for target in statement.targets:
