@@ -41,9 +41,6 @@ class_name_md = (
 constructor_hdr_md = (
     "### **Constructor** {{ #{0}-constructor data-toc-label=Constructor }}\n\n".format
 )  # name
-constructor_md = (
-"*{0}*`#!py3 {1}`\n\n".format
-)  # name, args
 static_method_name_md = (
     "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
 )  # class, name, args
@@ -57,6 +54,9 @@ object_attribute_name_md = (
     "### *obj*.**{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, type, value
 
+constructor_md = (
+    "### **{0}**`#!py3 {1}` {{ #{0}-constructor data-toc-label=Constructor }}\n\n".format
+)  # name, args
 var_md = ( 
     "### **{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, type
@@ -364,9 +364,7 @@ def write_class(md_file, clas, options):
     md_file.writelines(doc_md(clas["doc"]))
 
     if clas["is_init"]:
-        md_file.writelines(constructor_hdr_md(clas["name"]))
-        md_file.writelines(constructor_md(clas["name"],clas["args"]))            
-        md_file.writelines(doc_md(clas["init_doc"]))
+        md_file.writelines(" - [`Constructor`](#{0}-constructor)\n".format(clas["name"]))
 
     if len(clas["instance_methods"]) > 0:
         md_file.writelines("\n**Instance Methods:** \n\n")
@@ -387,6 +385,12 @@ def write_class(md_file, clas, options):
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
 
     md_file.writelines(NEW_LINE)
+
+    if clas["is_init"]:         
+        md_file.writelines(constructor_md(clas["name"],clas["args"]))            
+        md_file.writelines(doc_md(clas["init_doc"]))
+        if options.get("is_source_shown",False): 
+            md_file.writelines(source_md(clas["init_source"]))
 
     for m in clas["instance_methods"]:
         write_method(md_file, m, clas, False, options)    
@@ -581,10 +585,11 @@ def create_class(package_name, name: str, obj, options: dict):
     >  - *module* -- name of the module
     >  - *path* -- path of the module file
     >  - *doc* -- docstring of the class
-    >  - *init_doc* -- docstring of the __init_ method
     >  - *source* -- source code of the class
     >  - *is_init* -- class definition includes __init__
     >  - *args* -- arguments of the class as a `inspect.signature` object
+    >  - *init_doc* -- docstring of the __init_ method
+    >  - *init_source* -- source code of the __init_ method
     >  - *functions* -- list of functions that are in the class (formatted as dict)
     >  - *methods* -- list of methods that are in the class (formatted as dict)
     >  - *attributes* -- list of attributes that are in the class (formatted as dict)
@@ -602,6 +607,7 @@ def create_class(package_name, name: str, obj, options: dict):
         
     clas["is_init"]             = False
     clas["init_doc"]            = ""
+    clas["init_source"]         = ""        
     clas["class_attributes"]    = []
     clas["class_methods"]       = []
     clas["instance_methods"]    = []    
@@ -633,6 +639,7 @@ def create_class(package_name, name: str, obj, options: dict):
         all_method_names.append(n)
         if n=='__init__':
             clas["init_doc"] = inspect.getdoc(o)
+            clas["init_source"] = rm_docstring_from_source(inspect.getsource(o))
             (args, 
              varargs, varkw, defaults, kwonlyargs, kwonlydefaults,  
              annotations) = inspect.getfullargspec(o)
