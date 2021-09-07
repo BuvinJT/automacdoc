@@ -402,6 +402,9 @@ def write_class(md_file, clas, options):
     for m in clas["class_attributes"]:
         write_attribute(md_file, m, True, options, clas)    
 
+    for m in clas["class_attributes"]:
+        if m["class"]: write_class(md_file, m["class"], options)
+
 def write_function(md_file, fun, options):
     """
     Add the documentation of a function to a markdown file
@@ -667,8 +670,10 @@ def create_class(package_name, name: str, obj, options: dict):
         if n not in builtin_names and n not in all_method_names:
             if defaultInst: 
                 v = getattr(defaultInst, n, None)
-            d = None # updated later via ast parsing            
-            a = create_att(n, o, v, d, options)
+            d = None # updated later via ast parsing
+            c =(create_class(package_name, "%s.%s" % (name,n), o, options) 
+                if inspect.isclass(o) else None )
+            a = create_att(n, o, v, d, c, options)
             if a: clas["class_attributes"].append(a)
      
     # use ast for additional inspection / parsing  
@@ -722,7 +727,7 @@ def create_class(package_name, name: str, obj, options: dict):
                                 isinstance(next_statement.value, ast.Str) ):
                                 doc = set_indent( next_statement.value.s, 0 )                                
                             else: doc = None    
-                            a = create_att(name, obj, obj, doc, options)
+                            a = create_att(name, obj, obj, doc, None, options)
                             if a: clas["instance_attributes"].append(a)                                
     with open(clas["path"],'r') as f: mod_source = f.read()            
     ClassVisitor().generic_visit(ast.parse(mod_source))
@@ -763,9 +768,9 @@ def create_fun(name: str, obj, options: dict):
     return fun
 
 def create_var(name: str, obj, val, doc, options: dict):
-    return create_att(name, obj, val, doc, options)
+    return create_att(name, obj, val, doc, None, options)
 
-def create_att(name: str, obj, val, doc, options: dict):
+def create_att(name: str, obj, val, doc, clas, options: dict):
     """
     Generate a dictionary that contains the information about an attribute
 
@@ -780,6 +785,7 @@ def create_att(name: str, obj, val, doc, options: dict):
     >  - *doc* -- docstring of the attribute
     >  - *type* -- type of the attribute
     >  - *value* -- value of the attribute
+    >  - *class* -- if attribute is, a dict with that class info
     """
 
     ignore_prefix = options.get("ignore_prefix")
@@ -794,9 +800,9 @@ def create_att(name: str, obj, val, doc, options: dict):
     att["name"]  = '<undefined name>' if name is None else name  
     att["obj"]   = obj
     att["type"]  = __markdown_safe(type(obj)) 
-    att["value"] = __markdown_safe(val)
+    att["value"] = __markdown_safe(val)    
     att["doc"]   = doc or ""
-    
+    att["class"] = clas    
     return att
 
 def rm_docstring_from_source( source:str ):
