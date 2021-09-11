@@ -36,7 +36,14 @@ def maxi2pourvoir(x, y):
     #return np.max(x, y)
     return x
 
-class Shark:
+class Animal: pass
+
+class Fish( Animal ): pass
+
+class Shark( Fish ):
+    """
+    A very cool fish!
+    """
 
     SMALL, MEDIUM, LARGE = range(3)
     """A constant used to represent size."""

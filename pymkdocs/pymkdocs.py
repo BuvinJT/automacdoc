@@ -12,6 +12,7 @@ import tempfile
 import subprocess
 import shutil
 from future.utils import string_types
+from _ast import Or
 # ----------------
  
 RAW_MODE, MAGIC_MODE = range(2)
@@ -38,8 +39,15 @@ TXT,SRC=range(2)
 class_name_md = (
     "## **{0}**`#!py3 class` {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name
+base_classes_hdr_md = (
+    "#### **Base Classes:** {{ #{0}-bases data-toc-label=\"Base Classes\" }}\n\n".format    
+)    # name
+base_class_md = (
+    "{0}".format
+)  # base name
+base_class_sep = ', '
 constructor_hdr_md = (
-    "### **Constructor** {{ #{0}-constructor data-toc-label=Constructor }}\n\n".format
+    " - [`Constructor`](#{0}-constructor)\n".format
 )  # name
 static_method_name_md = (
     "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
@@ -363,11 +371,18 @@ def write_class(md_file, clas, options):
     md_file.writelines(class_name_md(clas["name"]))
     md_file.writelines(doc_md(clas["doc"]))
 
-    if clas["is_init"]:
-        md_file.writelines(" - [`Constructor`](#{0}-constructor)\n".format(clas["name"]))
+    if len(clas["base"]) > 0:
+        md_file.writelines( base_classes_hdr_md(clas["name"]) )
+        base_class_list=""
+        for i, c in enumerate(clas["base"]):
+            if i > 0: base_class_list += base_class_sep
+            base_class_list += base_class_md(c)
+        md_file.writelines(base_class_list + '\n\n')
 
-    if len(clas["instance_methods"]) > 0:
+    if len(clas["instance_methods"]) > 0 or clas["is_init"]:
         md_file.writelines("\n**Instance Methods:** \n\n")
+        if clas["is_init"]:
+            md_file.writelines(constructor_hdr_md(clas["name"]))        
         for m in clas["instance_methods"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
     if len(clas["instance_attributes"]) > 0:
@@ -587,6 +602,7 @@ def create_class(package_name, name: str, obj, options: dict):
     >  - *name*, *obj* -- the class name and object as returned by `inspect.getmembers`
     >  - *module* -- name of the module
     >  - *path* -- path of the module file
+    >  - *base* -- base class(es)
     >  - *doc* -- docstring of the class
     >  - *source* -- source code of the class
     >  - *is_init* -- class definition includes __init__
@@ -603,10 +619,13 @@ def create_class(package_name, name: str, obj, options: dict):
     clas["obj"]    = obj
     
     clas["module"] = inspect.getmodule(obj).__name__
-    clas["path"]   = inspect.getmodule(obj).__file__
+    clas["path"]   = inspect.getmodule(obj).__file__    
     clas["doc"]    = inspect.getdoc(obj) or ""    
     clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
     clas["args"]   = inspect.signature(obj)
+
+    clas["base"] = [ c.__name__ for c in reversed(inspect.getmro(obj)) 
+                     if c.__name__ not in [name,'object'] ] 
         
     clas["is_init"]             = False
     clas["init_doc"]            = ""
@@ -657,8 +676,9 @@ def create_class(package_name, name: str, obj, options: dict):
                 exec("from %s import %s" % (package_name, name))               
                 create_statement = "%s(%s)" % (name, ','.join(parms))
                 defaultInst = eval( create_statement )
-            except Exception as e: 
-                __on_warn_exc("Can't create default constructed object",e)                
+            except: pass
+            #except Exception as e:
+                #__on_warn_exc("Can't create default constructed object",e)                
         else :
             f = create_fun(n, o, options)
             if f: clas["instance_methods"].append(f)
