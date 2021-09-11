@@ -12,7 +12,6 @@ import tempfile
 import subprocess
 import shutil
 from future.utils import string_types
-from _ast import Or
 # ----------------
  
 RAW_MODE, MAGIC_MODE = range(2)
@@ -657,31 +656,38 @@ def create_class(package_name, name: str, obj, options: dict):
     methods.extend( inspect.getmembers(obj, inspect.ismethod) )
     methods.sort(key=operator.itemgetter(0))
     defaultInst = None
+    defaultParms = []
     for n, o in methods:
         all_method_names.append(n)
         if n=='__init__':
             clas["init_doc"] = inspect.getdoc(o)
             clas["init_source"] = rm_docstring_from_source(inspect.getsource(o))
             (args, 
-             varargs, varkw, defaults, kwonlyargs, kwonlydefaults,  
+             varargs, varkw, defaults, kwonlyargs, kwonlydefaults, # @UnusedVariable  
              annotations) = inspect.getfullargspec(o)
-        #print( name, args, varargs, varkw, defaults, 
-            #       kwonlyargs, kwonlydefaults, annotations )
-            parms = []
+            #print( name, args, varargs, varkw, defaults, 
+            #       kwonlyargs, kwonlydefaults, annotations )    
             for arg in args:
                 if arg=='self': continue
                 annot = annotations.get(arg)                
-                parms.append( '%s()' % (annot.__name__,) if annot else 'None' ) 
-            try: 
-                exec("from %s import %s" % (package_name, name))               
-                create_statement = "%s(%s)" % (name, ','.join(parms))
-                defaultInst = eval( create_statement )
-            except: pass
-            #except Exception as e:
-                #__on_warn_exc("Can't create default constructed object",e)                
+                defaultParms.append( '%s()' % (annot.__name__,) 
+                                     if annot else 'None' )             
         else :
             f = create_fun(n, o, options)
             if f: clas["instance_methods"].append(f)
+
+    import_name = name.split('.')[0]
+    import_statement = "from %s import %s" % (package_name, import_name)               
+    create_statement = "%s(%s)" % (name, ','.join(defaultParms))            
+    try: 
+        #print( import_statement + "\n" + create_statement + "\n" )                
+        exec( import_statement )               
+        defaultInst = eval( create_statement )
+    except: pass
+    #except Exception as e:
+    #    __on_warn_exc( "Can't create default constructed object:\n" +
+    #                   import_statement + "\n" +
+    #                   create_statement + "\n", e )                
     
     # get class attributes         
     builtin_names = __builtin_object_member_names()
