@@ -39,14 +39,17 @@ class_name_md = (
     "## **{0}**`#!py3 class` {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name
 base_classes_hdr_md = (
-    "#### **Base Classes:** {{ #{0}-bases data-toc-label=\"Base Classes\" }}\n\n".format    
-)    # name
+    "\n**Base Classes:**\n\n".format    
+)    
 base_class_md = (
     "{0}".format
 )  # base name
 base_class_sep = ', '
-constructor_hdr_md = (
-    " - [`Constructor`](#{0}-constructor)\n".format
+magic_methods_hdr_md = (
+    "\n**Magic Methods:**\n\n".format    
+)    
+init_hdr_md = (
+    " - [`__init__`](#{0}-init)\n".format
 )  # name
 static_method_name_md = (
     "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
@@ -61,8 +64,8 @@ object_attribute_name_md = (
     "### *obj*.**{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, type, value
 
-constructor_md = (
-    "### **{0}**`#!py3 {1}` {{ #{0}-constructor data-toc-label=Constructor }}\n\n".format
+init_md = (
+    "### **{0}**`#!py3 {1}` {{ #{0}-init data-toc-label=\"&lowbar;&lowbar;init&lowbar;&lowbar;\" }}\n\n".format
 )  # name, args
 var_md = ( 
     "### **{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
@@ -371,17 +374,19 @@ def write_class(md_file, clas, options):
     md_file.writelines(doc_md(clas["doc"]))
 
     if len(clas["base"]) > 0:
-        md_file.writelines( base_classes_hdr_md(clas["name"]) )
+        md_file.writelines( base_classes_hdr_md() )
         base_class_list=""
         for i, c in enumerate(clas["base"]):
             if i > 0: base_class_list += base_class_sep
             base_class_list += base_class_md(c)
         md_file.writelines(base_class_list + '\n\n')
 
+    if clas["is_init"]:        
+        md_file.writelines( magic_methods_hdr_md() )
+        md_file.writelines(init_hdr_md(clas["name"]))        
+
     if len(clas["instance_methods"]) > 0 or clas["is_init"]:
         md_file.writelines("\n**Instance Methods:** \n\n")
-        if clas["is_init"]:
-            md_file.writelines(constructor_hdr_md(clas["name"]))        
         for m in clas["instance_methods"]:
             md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
     if len(clas["instance_attributes"]) > 0:
@@ -401,7 +406,7 @@ def write_class(md_file, clas, options):
     md_file.writelines(NEW_LINE)
 
     if clas["is_init"]:         
-        md_file.writelines(constructor_md(clas["name"],clas["args"]))            
+        md_file.writelines(init_md(clas["name"],clas["args"]))            
         md_file.writelines(doc_md(clas["init_doc"]))
         if options.get("is_source_shown",False): 
             md_file.writelines(source_md(clas["init_source"]))
