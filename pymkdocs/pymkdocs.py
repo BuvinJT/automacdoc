@@ -628,8 +628,9 @@ def create_class(package_name, name: str, obj, options: dict):
     clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
     clas["args"]   = inspect.signature(obj)
 
+    root_name = name.split(".")[-1] 
     clas["base"] = [ c.__name__ for c in reversed(inspect.getmro(obj)) 
-                     if c.__name__ not in [name,'object'] ] 
+                     if c.__name__ not in [root_name,'object'] ] 
         
     clas["is_init"]             = False
     clas["init_doc"]            = ""
