@@ -330,16 +330,17 @@ def write_module(
     global _new_docs
 
     package_path = os.path.abspath(path_to_home)
+    package_name = module_import.split(".")[0]
     sys.path.insert(0, package_path)
 
     try:
         module = importlib.import_module(
-            module_import, package=module_import.split(".")[0]
+            module_import, package=package_name
         )
     except ModuleNotFoundError as error:
         raise ModuleNotFoundError(str(error) + " in " + module_import)
 
-    clas  = [create_class(n, o, options)
+    clas  = [create_class(package_name, n, o, options)
             for n, o in inspect.getmembers(module, inspect.isclass)]
     funs  = [create_fun(n, o, options)
             for n, o in inspect.getmembers(module, inspect.isfunction)]
@@ -1083,7 +1084,8 @@ def __get_import_vars( module ):
 def __write_mod( md_file, module_path: str, class_name: str, options ):
     try:
         module = __get_import_by_path( module_path )
-        clas  = [create_class(n, o, options)
+        package_name = os.path.splitext(os.path.basename(module_path))[0]
+        clas  = [create_class(package_name, n, o, options)
                 for n, o in inspect.getmembers(module, inspect.isclass)]
         funs  = [create_fun(n, o, options)
                 for n, o in inspect.getmembers(module, inspect.isfunction)]                                        
