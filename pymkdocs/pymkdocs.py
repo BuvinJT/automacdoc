@@ -729,7 +729,7 @@ def create_att(name: str, obj, val, doc, options: dict):
 
     if isinstance(val,string_types):
         val = ('"&lt;empty string&gt;"'  if len(val)==0 else 
-               '"%s"'.format(val) )    
+               '"{0}"'.format(val) )    
 
     att = {}
     att["name"]  = '<undefined name>' if name is None else name  
