@@ -919,15 +919,16 @@ def __var_docstring( module, varname: str ):
                     except: next_line = ""
                     if next_line.startswith( TRIPLE_DOUBLE ):
                         line_parts = next_line.split( TRIPLE_DOUBLE )
-                        doc_string = line_parts[1]
+                        try:    doc_string = line_parts[1]
+                        except: doc_string = ""    
+                        is_doc_closed = len(line_parts) > 2  
                         doc_lineno = node.lineno
-                        while len(line_parts) == 2:
+                        while not is_doc_closed:                                                            
                             doc_lineno += 1                                
-                            try:    
-                                line_parts =( mod_lines[ doc_lineno ].strip()
-                                                .split( TRIPLE_DOUBLE ) )
-                                doc_string += " " + line_parts[1]
-                            except: line_parts = []
+                            line_parts =(mod_lines[ doc_lineno ].strip()
+                                            .split( TRIPLE_DOUBLE ) )
+                            doc_string += " " + line_parts[ 0 ]
+                            is_doc_closed = len(line_parts) > 1
                         return doc_string                            
                     return None # TODO
                      

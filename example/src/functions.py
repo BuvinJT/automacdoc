@@ -3,6 +3,12 @@
 MIN_SIZE=-1
 """This is the minimum size allowed!"""
 
+MAX_SIZE=1000
+"""
+This is the maximum size allowed!
+(That's a <b>big</b> number, right?)
+"""
+
 _pro_min_size=-2
 __pri_min_size=-3
 
