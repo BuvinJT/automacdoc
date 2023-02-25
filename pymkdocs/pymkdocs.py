@@ -12,6 +12,7 @@ import tempfile
 import subprocess
 import shutil
 from future.utils import string_types
+import collections
 # ----------------
  
 RAW_MODE, MAGIC_MODE = range(2)
@@ -859,7 +860,7 @@ def __get_import_by_path( path: str, other_paths: list=None,
     
 def __get_source_path( module, member_name ):
     for n, o in inspect.getmembers( module ):
-        if n==member_name: 
+        if n==member_name:             
             try: return inspect.getmodule(o).__file__
             except: return module.__file__                
                 
@@ -888,21 +889,90 @@ def __get_import_var( module, varname: str, options: dict ):
     for n, o in __get_import_vars( module ):
         if n==varname:
             return create_var(n, o, o, __var_docstring(module,n), options)  
+        
+def __get_import_dtls( file_content ):
 
+    __MEMBER_DELIM = __SUB_MOD_DELIM = '.'            
+    __IMPORT_TMPLT       = "import %s"
+    __FROM_IMPORT_TMPLT  = "from %s import %s"
+    __IS_MOD_TMPLT       = "inspect.ismodule( %s )"
+    __GET_MOD_PATH_TMPLT = "inspect.getfile( %s )"
+
+    ImportInfo = collections.namedtuple( "ImportInfo", [ 
+        "module", "name", "alias", "lineno",
+        "real_mod", "real_mbr", "real_path" 
+    ]) 
+            
+    def __yieldImport( file_content ):
+        def isMod( modName ):
+            try: 
+                exec( __IMPORT_TMPLT % (modName,) ) 
+                return eval( __IS_MOD_TMPLT % (modName,) )
+            except: return False    
+
+        def modPath( modName ):
+            try: 
+                exec( __IMPORT_TMPLT % (modName,) ) 
+                return eval( __GET_MOD_PATH_TMPLT % (modName,) )
+            except: return None     
+                            
+        def isChild( moduleName, childName ):
+            try:
+                exec( __FROM_IMPORT_TMPLT % (moduleName, childName) )
+                return True
+            except: return False
+        
+        root = ast.parse( file_content )           
+        for node in ast.walk( root ):
+            #print(node)
+            if   isinstance( node, ast.Import ): module = []
+            elif isinstance( node, ast.ImportFrom ):                
+                try:    module = node.module.split( __SUB_MOD_DELIM )
+                except: module = [] # example source here: from . import something
+            else: continue        
+            for n in node.names:                
+                name = n.name.split( __MEMBER_DELIM )                    
+                real_path = None                
+                real_mod = None
+                real_mbr = None
+                impParts = module + name
+                for i in range(len( impParts )):
+                    # start with the whole thing, then chop off more from 
+                    # the end each time                                  
+                    head = ( __MEMBER_DELIM.join( impParts ) if i==0 else
+                             __MEMBER_DELIM.join( impParts[:-i] ) )
+                    # start with nothing, then collect more from the end each time
+                    tail = "" if i==0 else __MEMBER_DELIM.join( impParts[-i:] )
+                    if isMod( head ):
+                        real_mod = head             
+                        real_path = modPath( real_mod )
+                        if isChild( real_mod, tail ): real_mbr = tail                        
+                        break
+                #print(module, name, n.asname, node.lineno, real_mod, real_mbr, real_path)    
+                yield ImportInfo( module, name, n.asname, node.lineno,
+                                  real_mod, real_mbr, real_path )
+                # Execution resumes here (with the locals preserved!) 
+                # on the next call to this function per the magic of "yield"...                           
+        
+    return [imp for imp in __yieldImport( file_content )]
+        
 def __var_docstring( module, varname: str ):
-    
-    mod_path = __get_source_path( module, varname )
-    try: 
-        with open( mod_path, 'r' ) as f: mod_content=f.read()
-    except Exception as e:
-        __on_err_exc("cannot read from path: %s" % (mod_path,), e)
-        return None 
-    
-    try: ast_root_node = ast.parse( mod_content )    
-    except Exception as e: 
-        __on_warn_exc("failed to parse source from %s" % (mod_path,), e)
+    return __var_docstring_from_path( __get_source_path( module, varname ), varname )
+
+def __var_docstring_from_path( mod_path, varname: str ):
+
+    def __traceImport( node, varname, mod_content ):
+        names = [n.asname if n.asname else n.name for n in node.names]
+        is_found = varname in names
+        if is_found:
+            #print( "%s is an import within %s... I need its assignment!" % (varname,mod_path) )
+            import_details = __get_import_dtls( mod_content )
+            for imp in import_details:                            
+                if ".".join(imp.name) == varname:                  
+                    #print( "Is it within %s?" % (imp.real_path,) )
+                    return __var_docstring_from_path( imp.real_path, varname )
         return None
-    
+        
     def __docStringFromNextAssign( node, varname, doc_string ):
         mod_lines = None    
         for target in node.targets:
@@ -925,19 +995,25 @@ def __var_docstring( module, varname: str ):
                     return doc_string                            
         return doc_string
     
-    def __traceImport( node, varname ):
-        names = [n.asname if n.asname else n.name for n in node.names]
-        is_found = varname in names
-        if is_found:
-            print( "%s is an import... need its assignment!" % (varname,) )
-        return is_found 
+    #print("searching for %s docstring in %s" % (varname, mod_path) ) 
+    try: 
+        with open( mod_path, 'r' ) as f: mod_content=f.read()
+    except Exception as e:
+        __on_err_exc("cannot read from path: %s" % (mod_path,), e)
+        return None 
     
+    try: ast_root_node = ast.parse( mod_content )    
+    except Exception as e: 
+        __on_warn_exc("failed to parse source from %s" % (mod_path,), e)
+        return None
+
     doc_string = None
     for node in ast.walk( ast_root_node ):
+        if isinstance( node, (ast.Import, ast.ImportFrom) ): 
+            doc_string = __traceImport( node, varname, mod_content )      
+            if doc_string: break
         if isinstance( node, ast.Assign ): 
             doc_string = __docStringFromNextAssign( node, varname, doc_string )
-        if isinstance( node, (ast.Import, ast.ImportFrom) ): 
-            if __traceImport( node, varname ): break                                        
     return doc_string
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
