@@ -323,11 +323,13 @@ def write_module(
     except ModuleNotFoundError as error:
         raise ModuleNotFoundError(str(error) + " in " + module_import)
 
-    clas  = [create_class(n, o, options)
+    package_name = None # TODO ?
+    
+    clas  = [create_class(package_name, n, o, options)
             for n, o in inspect.getmembers(module, inspect.isclass)]
     funs  = [create_fun(n, o, options)
             for n, o in inspect.getmembers(module, inspect.isfunction)]
-    gvars = [create_var(n, o, o, __var_docstring(module,n), options)  # TODO: Fill in val/doc
+    gvars = [create_var(n, o, o, __var_docstring(module,n), options)  
             for n, o in __get_import_vars(module)]
 
     if not os.path.isdir(os.path.dirname(path_to_md)):
@@ -610,7 +612,7 @@ def create_class(package_name, name: str, obj, options: dict):
     defaultInst = None
     for n, o in methods:
         all_method_names.append(n)
-        if n=='__init__':
+        if n=='__init__' and package_name:
             (args, 
              varargs, varkw, defaults, kwonlyargs, kwonlydefaults,  
              annotations) = inspect.getfullargspec(o)
@@ -884,11 +886,51 @@ def __get_import_func( module, funcname: str, options: dict ):
 
 def __get_import_var( module, varname: str, options: dict ):
     for n, o in __get_import_vars( module ):
-        if n==varname: 
+        if n==varname:
             return create_var(n, o, o, __var_docstring(module,n), options)  
 
 def __var_docstring( module, varname: str ):
-    print("__path__", module.__path__)
+    
+    mod_path = __get_source_path( module, varname )
+    try: 
+        with open( mod_path, 'r' ) as f: mod_content=f.read()
+    except Exception as e:
+        __on_err_exc("cannot read from path: %s" % (mod_path,), e)
+        return None 
+    
+    try: ast_root_node = ast.parse( mod_content )    
+    except Exception as e: 
+        __on_warn_exc("failed to parse source from %s" % (mod_path,), e)
+        return None
+    
+    for node in ast.walk( ast_root_node ):
+        if isinstance( node, (ast.Import, ast.ImportFrom) ):               
+            names = [n.asname if n.asname else n.name  
+                     for n in node.names]
+            if varname in names:
+                print( "%s is an import... need its root assignment!" % (varname,) )
+                return None # TODO 
+        if isinstance( node, ast.Assign ):
+            for target in node.targets:
+                if isinstance( target, ast.Name ) and target.id == varname:
+                    print( "%s is assigned on line %d of %s" % (varname,node.lineno,mod_path) )
+                    mod_lines = mod_content.split( NEW_LINE )
+                    try:    next_line = mod_lines[ node.lineno ].strip()
+                    except: next_line = ""
+                    if next_line.startswith( TRIPLE_DOUBLE ):
+                        line_parts = next_line.split( TRIPLE_DOUBLE )
+                        doc_string = line_parts[1]
+                        doc_lineno = node.lineno
+                        while len(line_parts) == 2:
+                            doc_lineno += 1                                
+                            try:    
+                                line_parts =( mod_lines[ doc_lineno ].strip()
+                                                .split( TRIPLE_DOUBLE ) )
+                                doc_string += " " + line_parts[1]
+                            except: line_parts = []
+                        return doc_string                            
+                    return None # TODO
+                     
     return None # TODO
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
@@ -935,11 +977,12 @@ def __get_import_vars( module ):
 def __write_mod( md_file, module_path: str, class_name: str, options ):
     try:
         module = __get_import_by_path( module_path )
-        clas  = [create_class(n, o, options)
+        package_name = None # TODO ?
+        clas  = [create_class(package_name, n, o, options) # 
                 for n, o in inspect.getmembers(module, inspect.isclass)]
         funs  = [create_fun(n, o, options)
                 for n, o in inspect.getmembers(module, inspect.isfunction)]                                        
-        gvars = [create_var(n, o, o, __var_docstring(module,n), options)  # TODO: Fill in val/doc
+        gvars = [create_var(n, o, o, __var_docstring(module,n), options)  
                 for n, o in __get_import_vars(module)]
         for c in clas:
             write_class(md_file, c, options)
