@@ -222,6 +222,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             mdfile_path = os.path.join(doc_path, mdfile_name)    
             md_file = open( mdfile_path, "w")
             _new_docs.append(mdfile_name)
+            package_name = os.path.splitext(os.path.basename(mdfile_path))[0]
                
             #print("Writing document: %s" % (mdfile_name,))  
          
@@ -235,17 +236,18 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                     md_file.write(NEW_LINE.join(sec_lines))
                     md_file.write(NEW_LINE)        
                 if sec_type==SRC:             
-                    parsed = __parse_sec_for_names( 
+                    parsed = __parse_sec_for_import_names( 
                         module, all_names, package_path, sec_lines )
                     #print( "parsed", parsed )
                     if not parsed: continue   
                     mod_info, class_info, func_info, var_info = parsed
-                    #print( mod_info, class_info, func_info, var_info )       
-                    for name in mod_info: 
-                        __write_mod(md_file, mod_info[name], name, options)                             
+                    #print( mod_info, class_info, func_info, var_info )                        
+                    for name in mod_info:                        
+                        __write_mod(md_file, mod_info[name], package_name, name, options)                             
                     for name in class_info: 
                         __write_class(md_file, class_info[name], name, options)
-                    if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
+                    if len(func_info) > 0 and len(class_info) > 0: 
+                        write_functions_header(md_file)
                     for name in func_info: 
                         __write_func(md_file, func_info[name], name, options)     
                     if len(var_info) > 0 and (len(func_info) > 0 or len(class_info) > 0): 
@@ -322,10 +324,8 @@ def write_module(
         )
     except ModuleNotFoundError as error:
         raise ModuleNotFoundError(str(error) + " in " + module_import)
-
-    package_name = None # TODO ?
-    
-    clas  = [create_class(package_name, n, o, options)
+   
+    clas  = [create_class(module_import, n, o, options)
             for n, o in inspect.getmembers(module, inspect.isclass)]
     funs  = [create_fun(n, o, options)
             for n, o in inspect.getmembers(module, inspect.isfunction)]
@@ -903,36 +903,42 @@ def __var_docstring( module, varname: str ):
         __on_warn_exc("failed to parse source from %s" % (mod_path,), e)
         return None
     
+    def __docStringFromNextAssign( node, varname, doc_string ):
+        mod_lines = None    
+        for target in node.targets:
+            if isinstance( target, ast.Name ) and target.id == varname:
+                if mod_lines is None: mod_lines = mod_content.split( NEW_LINE )
+                try:    next_line = mod_lines[ node.lineno ].strip()
+                except: next_line = ""
+                if next_line.startswith( TRIPLE_DOUBLE ):
+                    line_parts = next_line.split( TRIPLE_DOUBLE )
+                    try:    doc_string = line_parts[1]
+                    except: doc_string = ""    
+                    is_doc_closed = len(line_parts) > 2  
+                    doc_lineno = node.lineno
+                    while not is_doc_closed:                                                            
+                        doc_lineno += 1                                
+                        line_parts =(mod_lines[ doc_lineno ].strip()
+                                        .split( TRIPLE_DOUBLE ) )
+                        doc_string += " " + line_parts[ 0 ]
+                        is_doc_closed = len(line_parts) > 1
+                    return doc_string                            
+        return doc_string
+    
+    def __traceImport( node, varname ):
+        names = [n.asname if n.asname else n.name for n in node.names]
+        is_found = varname in names
+        if is_found:
+            print( "%s is an import... need its assignment!" % (varname,) )
+        return is_found 
+    
+    doc_string = None
     for node in ast.walk( ast_root_node ):
-        if isinstance( node, (ast.Import, ast.ImportFrom) ):               
-            names = [n.asname if n.asname else n.name  
-                     for n in node.names]
-            if varname in names:
-                print( "%s is an import... need its root assignment!" % (varname,) )
-                return None # TODO 
-        if isinstance( node, ast.Assign ):
-            for target in node.targets:
-                if isinstance( target, ast.Name ) and target.id == varname:
-                    print( "%s is assigned on line %d of %s" % (varname,node.lineno,mod_path) )
-                    mod_lines = mod_content.split( NEW_LINE )
-                    try:    next_line = mod_lines[ node.lineno ].strip()
-                    except: next_line = ""
-                    if next_line.startswith( TRIPLE_DOUBLE ):
-                        line_parts = next_line.split( TRIPLE_DOUBLE )
-                        try:    doc_string = line_parts[1]
-                        except: doc_string = ""    
-                        is_doc_closed = len(line_parts) > 2  
-                        doc_lineno = node.lineno
-                        while not is_doc_closed:                                                            
-                            doc_lineno += 1                                
-                            line_parts =(mod_lines[ doc_lineno ].strip()
-                                            .split( TRIPLE_DOUBLE ) )
-                            doc_string += " " + line_parts[ 0 ]
-                            is_doc_closed = len(line_parts) > 1
-                        return doc_string                            
-                    return None # TODO
-                     
-    return None # TODO
+        if isinstance( node, ast.Assign ): 
+            doc_string = __docStringFromNextAssign( node, varname, doc_string )
+        if isinstance( node, (ast.Import, ast.ImportFrom) ): 
+            if __traceImport( node, varname ): break                                        
+    return doc_string
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 
@@ -975,10 +981,9 @@ def __get_import_vars( module ):
         import_vars.append((n,o))
     return import_vars
 
-def __write_mod( md_file, module_path: str, class_name: str, options ):
+def __write_mod( md_file, module_path: str, package_name: str, class_name: str, options ):
     try:
         module = __get_import_by_path( module_path )
-        package_name = None # TODO ?
         clas  = [create_class(package_name, n, o, options) # 
                 for n, o in inspect.getmembers(module, inspect.isclass)]
         funs  = [create_fun(n, o, options)
@@ -1050,22 +1055,15 @@ def _to_virtual_lines(lines):
         v_lines.append(line)
     return v_lines
         
-def __parse_sec_for_names( module, all_names, package_path, snippet_lines ):   
+def __parse_sec_for_import_names( module, all_names, package_path, snippet_lines ):   
     
     def __get_identifier_names( ast_root_node ):        
         parsed_imports=[]    
         for node in ast.walk( ast_root_node ):
             if isinstance( node, (ast.Import, ast.ImportFrom) ):               
-                #module =( node.module if isinstance( node, ast.ImportFrom )
-                #          else None )                             
                 names = [n.asname if n.asname else n.name  
                          for n in node.names]
                 parsed_imports.extend( names )
-            # CONSTANTS assigned directly in that module perhaps...    
-            #if isinstance( node, ast.Assign ):
-            #    for target in node.targets:
-            #        parsed_imports.append( target.name )
-                                        
         return parsed_imports               
 
     # get the identifiers which are only found in the code snippet 
