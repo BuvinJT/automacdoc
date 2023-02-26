@@ -12,6 +12,7 @@ import tempfile
 import subprocess
 import shutil
 from future.utils import string_types
+import collections
 # ----------------
  
 RAW_MODE, MAGIC_MODE = range(2)
@@ -32,6 +33,8 @@ MAGIC_VIRTUAL_COMMENT_END   = TRIPLE_DOUBLE
 
 MAGIC_NULL                  = 'null'
 MAGIC_MODDOC_COMMENT        = '# docs : __doc__' 
+
+MAGIC_VAR_UNDEF_COMMENT     = 'docs > var_undef' 
 
 TXT,SRC=range(2)
 
@@ -69,7 +72,10 @@ init_md = (
 )  # name, args
 var_md = ( 
     "### **{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, type
+)  # name, type, default
+var_undef_md = ( 
+    "### **{0}** *{1}* default: <span style=""color:gray"">undefined ({2}?)</span> {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, type, default
 all_vars_md= (
     "## **Constants and Globals** {{ #Constants-and-Globals data-toc-label=\"Constants and Globals\" }}\n\n".format
 )  
@@ -238,6 +244,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
             mdfile_path = os.path.join(doc_path, mdfile_name)    
             md_file = open( mdfile_path, "w")
             _new_docs.append(mdfile_name)
+            package_name = os.path.splitext(os.path.basename(mdfile_path))[0]
                
             #print("Writing document: %s" % (mdfile_name,))  
          
@@ -251,17 +258,18 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                     md_file.write(NEW_LINE.join(sec_lines))
                     md_file.write(NEW_LINE)        
                 if sec_type==SRC:             
-                    parsed = __parse_sec_for_names( 
+                    parsed = __parse_sec_for_import_names( 
                         module, all_names, package_path, sec_lines )
                     #print( "parsed", parsed )
                     if not parsed: continue   
                     mod_info, class_info, func_info, var_info = parsed
-                    #print( mod_info, class_info, func_info, var_info )       
-                    for name in mod_info: 
-                        __write_mod(md_file, mod_info[name], name, options)                             
+                    #print( mod_info, class_info, func_info, var_info )                        
+                    for name in mod_info:                        
+                        __write_mod(md_file, mod_info[name], package_name, name, options)                             
                     for name in class_info: 
                         __write_class(md_file, class_info[name], name, options)
-                    if len(func_info) > 0 and len(class_info) > 0: write_functions_header(md_file)
+                    if len(func_info) > 0 and len(class_info) > 0: 
+                        write_functions_header(md_file)
                     for name in func_info: 
                         __write_func(md_file, func_info[name], name, options)     
                     if len(var_info) > 0 and (len(func_info) > 0 or len(class_info) > 0): 
@@ -344,7 +352,7 @@ def write_module(
             for n, o in inspect.getmembers(module, inspect.isclass)]
     funs  = [create_fun(n, o, options)
             for n, o in inspect.getmembers(module, inspect.isfunction)]
-    gvars = [create_var(n, o, o, __var_docstring(module,n), options)  # TODO: Fill in val/doc
+    gvars = [create_var(n, o, o, __var_docstring(module,n), options)  
             for n, o in __get_import_vars(module)]
 
     if not os.path.isdir(os.path.dirname(path_to_md)):
@@ -471,8 +479,21 @@ def write_variable(md_file, var, options):
 
     """
     if var is None: return
-    md_file.writelines(var_md(var["name"],var["type"],var["value"])) 
-    md_file.writelines(doc_md(var["doc"]))
+    
+    doc_lines_in  = var["doc"].split(NEW_LINE)
+    doc_lines_out = []
+    is_magic_var_undef = False
+    for line in doc_lines_in:
+        line = line.strip()
+        print(line)
+        if line.startswith( MAGIC_VAR_UNDEF_COMMENT ): is_magic_var_undef = True
+        else : doc_lines_out.append( line )
+    doc = NEW_LINE.join(doc_lines_out)
+    if  is_magic_var_undef  : print( "%s is_magic_var_undef" % (var["name"],) )
+    md_file.writelines( var_undef_md(var["name"],var["type"],var["value"])
+                        if is_magic_var_undef 
+                        else  var_md(var["name"],var["type"],var["value"]) )
+    md_file.writelines(doc_md(doc))
 
 def write_attribute(md_file, att, is_static, options, clas=None):
     """
@@ -827,7 +848,7 @@ def create_att(name: str, obj, val, doc, clas, options: dict):
 
     if isinstance(val,string_types):
         val = ('"&lt;empty string&gt;"'  if len(val)==0 else 
-               '"%s"'.format(val) )    
+               '"{0}"'.format(val) )    
 
     att = {}
     att["name"]  = '<undefined name>' if name is None else name  
@@ -955,7 +976,7 @@ def __get_import_by_path( path: str, other_paths: list=None,
     
 def __get_source_path( module, member_name ):
     for n, o in inspect.getmembers( module ):
-        if n==member_name: 
+        if n==member_name:             
             try: return inspect.getmodule(o).__file__
             except: return module.__file__                
                 
@@ -982,10 +1003,146 @@ def __get_import_func( module, funcname: str, options: dict ):
 
 def __get_import_var( module, varname: str, options: dict ):
     for n, o in __get_import_vars( module ):
-        if n==varname: 
+        if n==varname:
             return create_var(n, o, o, __var_docstring(module,n), options)  
+        
+def __get_import_dtls( file_content ):
 
+    __MEMBER_DELIM = __SUB_MOD_DELIM = '.'            
+    __IMPORT_TMPLT       = "import %s"
+    __FROM_IMPORT_TMPLT  = "from %s import %s"
+    __IS_MOD_TMPLT       = "inspect.ismodule( %s )"
+    __GET_MOD_PATH_TMPLT = "inspect.getfile( %s )"
+
+    ImportInfo = collections.namedtuple( "ImportInfo", [ 
+        "module", "name", "alias", "lineno",
+        "real_mod", "real_mbr", "real_path" 
+    ]) 
+            
+    def __yieldImport( file_content ):
+        def isMod( modName ):
+            try: 
+                exec( __IMPORT_TMPLT % (modName,) ) 
+                return eval( __IS_MOD_TMPLT % (modName,) )
+            except: return False    
+
+        def modPath( modName ):
+            try: 
+                exec( __IMPORT_TMPLT % (modName,) ) 
+                return eval( __GET_MOD_PATH_TMPLT % (modName,) )
+            except: return None     
+                            
+        def isChild( moduleName, childName ):
+            try:
+                exec( __FROM_IMPORT_TMPLT % (moduleName, childName) )
+                return True
+            except: return False
+        
+        root = ast.parse( file_content )           
+        for node in ast.walk( root ):
+            #print(node)
+            if   isinstance( node, ast.Import ): module = []
+            elif isinstance( node, ast.ImportFrom ):                
+                try:    module = node.module.split( __SUB_MOD_DELIM )
+                except: module = [] # example source here: from . import something
+            else: continue        
+            for n in node.names:                
+                name = n.name.split( __MEMBER_DELIM )                    
+                real_path = None                
+                real_mod = None
+                real_mbr = None
+                impParts = module + name
+                for i in range(len( impParts )):
+                    # start with the whole thing, then chop off more from 
+                    # the end each time                                  
+                    head = ( __MEMBER_DELIM.join( impParts ) if i==0 else
+                             __MEMBER_DELIM.join( impParts[:-i] ) )
+                    # start with nothing, then collect more from the end each time
+                    tail = "" if i==0 else __MEMBER_DELIM.join( impParts[-i:] )
+                    if isMod( head ):
+                        real_mod = head             
+                        real_path = modPath( real_mod )
+                        if isChild( real_mod, tail ): real_mbr = tail                        
+                        break
+                #print(module, name, n.asname, node.lineno, real_mod, real_mbr, real_path)    
+                yield ImportInfo( module, name, n.asname, node.lineno,
+                                  real_mod, real_mbr, real_path )
+                # Execution resumes here (with the locals preserved!) 
+                # on the next call to this function per the magic of "yield"...                           
+        
+    return [imp for imp in __yieldImport( file_content )]
+        
 def __var_docstring( module, varname: str ):
+    return __var_docstring_from_path( __get_source_path( module, varname ), varname )
+
+def __var_docstring_from_path( mod_path, varname: str ):
+
+    def __traceImport( node, varname, mod_content, doc_string ):
+        names = [n.asname if n.asname else n.name for n in node.names]
+        is_found = varname in names
+        if is_found:
+            #print( "%s is an import within %s... I need its assignment!" % (varname,mod_path) )
+            import_details = __get_import_dtls( mod_content )
+            for imp in import_details:                            
+                if ".".join(imp.name) == varname:                  
+                    #print( "Is it within %s?" % (imp.real_path,) )
+                    return __var_docstring_from_path( imp.real_path, varname )
+        return doc_string
+        
+    def __docStringFromNextAssign( node, varname, doc_string ):
+        mod_lines = None    
+        for target in node.targets:
+            #try: print("varname %s => target.id %s type: %s" % (varname,target.id,type(target)) )
+            #except: pass
+            if isinstance( target, ast.Name ) and target.id == varname:
+                #print("found assignment for %s on line %d"  % (varname,node.lineno) )
+                if mod_lines is None: mod_lines = mod_content.split( NEW_LINE )
+                try:    next_line = mod_lines[ node.lineno ].strip()
+                except: next_line = ""
+                if next_line.startswith( TRIPLE_DOUBLE ):
+                    #print("triple double found on line %d"  % (node.lineno+1,) )
+                    line_parts = next_line.split( TRIPLE_DOUBLE )
+                    #print("line_parts %s"  % (line_parts,) )
+                    try:    doc_string = line_parts[1]
+                    except: doc_string = ""    
+                    is_doc_closed = len(line_parts) > 2  
+                    doc_lineno = node.lineno
+                    while not is_doc_closed:                                                            
+                        doc_lineno += 1                 
+                        try:               
+                            line_parts =(mod_lines[ doc_lineno ].strip()
+                                            .split( TRIPLE_DOUBLE ) )
+                            doc_string += NEW_LINE + line_parts[ 0 ]
+                            is_doc_closed = len(line_parts) > 1
+                        except: is_doc_closed = True   
+                    #print("extracted doc_string: %s"  % (doc_string,) )    
+                    return doc_string                            
+        return doc_string
+    
+    #print("searching for %s docstring in %s" % (varname, mod_path) ) 
+    try: 
+        with open( mod_path, 'r' ) as f: mod_content=f.read()
+    except Exception as e:
+        __on_err_exc("cannot read from path: %s" % (mod_path,), e)
+        return None 
+    
+    try: ast_root_node = ast.parse( mod_content )    
+    except Exception as e: 
+        __on_warn_exc("failed to parse source from %s" % (mod_path,), e)
+        return None
+
+    doc_string = None
+    for node in ast.walk( ast_root_node ):
+        if isinstance( node, (ast.Import, ast.ImportFrom) ): 
+            doc_string = __traceImport( node, varname, mod_content, doc_string )
+            #print("current doc_string: %s" % (doc_string,) )      
+            if doc_string: break
+        if isinstance( node, ast.Assign ): 
+            doc_string = __docStringFromNextAssign( node, varname, doc_string )
+            #print("current doc_string: %s" % (doc_string,) )
+            
+    #print("%s doc_string: %s" % (varname, doc_string) )             
+    return doc_string
 
     def __docstring( root_node, varname ):
         """
@@ -1081,15 +1238,14 @@ def __get_import_vars( module ):
         import_vars.append((n,o))
     return import_vars
 
-def __write_mod( md_file, module_path: str, class_name: str, options ):
+def __write_mod( md_file, module_path: str, package_name: str, class_name: str, options ):
     try:
         module = __get_import_by_path( module_path )
-        package_name = os.path.splitext(os.path.basename(module_path))[0]
-        clas  = [create_class(package_name, n, o, options)
+        clas  = [create_class(package_name, n, o, options) # 
                 for n, o in inspect.getmembers(module, inspect.isclass)]
         funs  = [create_fun(n, o, options)
                 for n, o in inspect.getmembers(module, inspect.isfunction)]                                        
-        gvars = [create_var(n, o, o, __var_docstring(module,n), options)  # TODO: Fill in val/doc
+        gvars = [create_var(n, o, o, __var_docstring(module,n), options)  
                 for n, o in __get_import_vars(module)]
         for c in clas:
             write_class(md_file, c, options)
@@ -1156,22 +1312,15 @@ def _to_virtual_lines(lines):
         v_lines.append(line)
     return v_lines
         
-def __parse_sec_for_names( module, all_names, package_path, snippet_lines ):   
+def __parse_sec_for_import_names( module, all_names, package_path, snippet_lines ):   
     
     def __get_identifier_names( ast_root_node ):        
         parsed_imports=[]    
         for node in ast.walk( ast_root_node ):
             if isinstance( node, (ast.Import, ast.ImportFrom) ):               
-                #module =( node.module if isinstance( node, ast.ImportFrom )
-                #          else None )                             
                 names = [n.asname if n.asname else n.name  
                          for n in node.names]
                 parsed_imports.extend( names )
-            # CONSTANTS assigned directly in that module perhaps...    
-            #if isinstance( node, ast.Assign ):
-            #    for target in node.targets:
-            #        parsed_imports.append( target.name )
-                                        
         return parsed_imports               
 
     # get the identifiers which are only found in the code snippet 

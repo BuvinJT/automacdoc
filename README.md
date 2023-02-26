@@ -182,6 +182,15 @@ is_virtual_code_cool = True
 """
 ````
 
+**VARIABLE UNDEFINED**:
+
+```py3
+MY_CONSTANT="brilliance"
+""" Here is a docstring for my constant.
+docs > var_undef
+"""
+````
+
 Following this comment pattern, the parsing / object inspecting performed
 by the tool will act as though the virtual code were actually present,
 but without it having to truly be included in your project.
