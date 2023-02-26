@@ -12,7 +12,7 @@ import tempfile
 import subprocess
 import shutil
 from future.utils import string_types
-import collections
+#import collections
 # ----------------
  
 RAW_MODE, MAGIC_MODE = range(2)
@@ -485,11 +485,11 @@ def write_variable(md_file, var, options):
     is_magic_var_undef = False
     for line in doc_lines_in:
         line = line.strip()
-        print(line)
+        #print(line)
         if line.startswith( MAGIC_VAR_UNDEF_COMMENT ): is_magic_var_undef = True
         else : doc_lines_out.append( line )
     doc = NEW_LINE.join(doc_lines_out)
-    if  is_magic_var_undef  : print( "%s is_magic_var_undef" % (var["name"],) )
+    #if  is_magic_var_undef  : print( "%s is_magic_var_undef" % (var["name"],) )
     md_file.writelines( var_undef_md(var["name"],var["type"],var["value"])
                         if is_magic_var_undef 
                         else  var_md(var["name"],var["type"],var["value"]) )
@@ -693,8 +693,8 @@ def create_class(package_name, name: str, obj, options: dict):
             (args, 
              varargs, varkw, defaults, kwonlyargs, kwonlydefaults, # @UnusedVariable  
              annotations) = inspect.getfullargspec(o)
-            print( name, args, varargs, varkw, defaults, 
-                   kwonlyargs, kwonlydefaults, annotations )    
+            #print( name, args, varargs, varkw, defaults, 
+            #       kwonlyargs, kwonlydefaults, annotations )    
             for arg in args:
                 if arg=='self': continue
                 annot = annotations.get(arg)                
@@ -708,7 +708,7 @@ def create_class(package_name, name: str, obj, options: dict):
     import_statement = "from %s import %s" % (package_name, import_name)               
     create_statement = "%s(%s)" % (name, ','.join(default_parms))            
     try: 
-        print( import_statement + "\n" + create_statement + "\n" )                
+        #print( import_statement + "\n" + create_statement + "\n" )                
         exec( import_statement )               
         default_inst = eval( create_statement )
     except: pass
@@ -1004,8 +1004,11 @@ def __get_import_func( module, funcname: str, options: dict ):
 def __get_import_var( module, varname: str, options: dict ):
     for n, o in __get_import_vars( module ):
         if n==varname:
-            return create_var(n, o, o, __var_docstring(module,n), options)  
-        
+            return create_var(n, o, o, __var_docstring(module,n), options)
+
+# REDUNDANT WORK ???!        
+# ------------------------------------------------------------------------          
+"""       
 def __get_import_dtls( file_content ):
 
     __MEMBER_DELIM = __SUB_MOD_DELIM = '.'            
@@ -1071,7 +1074,7 @@ def __get_import_dtls( file_content ):
                 # on the next call to this function per the magic of "yield"...                           
         
     return [imp for imp in __yieldImport( file_content )]
-        
+                
 def __var_docstring( module, varname: str ):
     return __var_docstring_from_path( __get_source_path( module, varname ), varname )
 
@@ -1143,7 +1146,10 @@ def __var_docstring_from_path( mod_path, varname: str ):
             
     #print("%s doc_string: %s" % (varname, doc_string) )             
     return doc_string
+"""
 
+def __var_docstring( module, varname: str ):
+    
     def __docstring( root_node, varname ):
         """
         Returns docstring (as str), 
