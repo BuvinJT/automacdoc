@@ -34,6 +34,8 @@ MAGIC_VIRTUAL_COMMENT_END   = TRIPLE_DOUBLE
 MAGIC_NULL                  = 'null'
 MAGIC_MODDOC_COMMENT        = '# docs : __doc__' 
 
+MAGIC_VAR_UNDEF_COMMENT     = 'docs > var_undef' 
+
 TXT,SRC=range(2)
 
 class_name_md = (
@@ -54,7 +56,10 @@ object_attribute_name_md = (
 
 var_md = ( 
     "### **{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, type
+)  # name, type, default
+var_undef_md = ( 
+    "### **{0}** *{1}* default: <span style=""color:gray"">undefined ({2}?)</span> {{ #{0} data-toc-label={0} }}\n\n".format
+)  # name, type, default
 all_vars_md= (
     "## **Constants and Globals** {{ #Constants-and-Globals data-toc-label=\"Constants and Globals\" }}\n\n".format
 )  
@@ -434,8 +439,21 @@ def write_variable(md_file, var, options):
 
     """
     if var is None: return
-    md_file.writelines(var_md(var["name"],var["type"],var["value"])) 
-    md_file.writelines(doc_md(var["doc"]))
+    
+    doc_lines_in  = var["doc"].split(NEW_LINE)
+    doc_lines_out = []
+    is_magic_var_undef = False
+    for line in doc_lines_in:
+        line = line.strip()
+        print(line)
+        if line.startswith( MAGIC_VAR_UNDEF_COMMENT ): is_magic_var_undef = True
+        else : doc_lines_out.append( line )
+    doc = NEW_LINE.join(doc_lines_out)
+    if  is_magic_var_undef  : print( "%s is_magic_var_undef" % (var["name"],) )
+    md_file.writelines( var_undef_md(var["name"],var["type"],var["value"])
+                        if is_magic_var_undef 
+                        else  var_md(var["name"],var["type"],var["value"]) )
+    md_file.writelines(doc_md(doc))
 
 def write_attribute(md_file, att, is_static, options, clas=None):
     """
@@ -996,7 +1014,7 @@ def __var_docstring_from_path( mod_path, varname: str ):
                         try:               
                             line_parts =(mod_lines[ doc_lineno ].strip()
                                             .split( TRIPLE_DOUBLE ) )
-                            doc_string += " " + line_parts[ 0 ]
+                            doc_string += NEW_LINE + line_parts[ 0 ]
                             is_doc_closed = len(line_parts) > 1
                         except: is_doc_closed = True   
                     #print("extracted doc_string: %s"  % (doc_string,) )    
