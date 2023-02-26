@@ -961,7 +961,7 @@ def __var_docstring( module, varname: str ):
 
 def __var_docstring_from_path( mod_path, varname: str ):
 
-    def __traceImport( node, varname, mod_content ):
+    def __traceImport( node, varname, mod_content, doc_string ):
         names = [n.asname if n.asname else n.name for n in node.names]
         is_found = varname in names
         if is_found:
@@ -971,27 +971,35 @@ def __var_docstring_from_path( mod_path, varname: str ):
                 if ".".join(imp.name) == varname:                  
                     #print( "Is it within %s?" % (imp.real_path,) )
                     return __var_docstring_from_path( imp.real_path, varname )
-        return None
+        return doc_string
         
     def __docStringFromNextAssign( node, varname, doc_string ):
         mod_lines = None    
         for target in node.targets:
+            #try: print("varname %s => target.id %s type: %s" % (varname,target.id,type(target)) )
+            #except: pass
             if isinstance( target, ast.Name ) and target.id == varname:
+                #print("found assignment for %s on line %d"  % (varname,node.lineno) )
                 if mod_lines is None: mod_lines = mod_content.split( NEW_LINE )
                 try:    next_line = mod_lines[ node.lineno ].strip()
                 except: next_line = ""
                 if next_line.startswith( TRIPLE_DOUBLE ):
+                    #print("triple double found on line %d"  % (node.lineno+1,) )
                     line_parts = next_line.split( TRIPLE_DOUBLE )
+                    #print("line_parts %s"  % (line_parts,) )
                     try:    doc_string = line_parts[1]
                     except: doc_string = ""    
                     is_doc_closed = len(line_parts) > 2  
                     doc_lineno = node.lineno
                     while not is_doc_closed:                                                            
-                        doc_lineno += 1                                
-                        line_parts =(mod_lines[ doc_lineno ].strip()
-                                        .split( TRIPLE_DOUBLE ) )
-                        doc_string += " " + line_parts[ 0 ]
-                        is_doc_closed = len(line_parts) > 1
+                        doc_lineno += 1                 
+                        try:               
+                            line_parts =(mod_lines[ doc_lineno ].strip()
+                                            .split( TRIPLE_DOUBLE ) )
+                            doc_string += " " + line_parts[ 0 ]
+                            is_doc_closed = len(line_parts) > 1
+                        except: is_doc_closed = True   
+                    #print("extracted doc_string: %s"  % (doc_string,) )    
                     return doc_string                            
         return doc_string
     
@@ -1010,10 +1018,14 @@ def __var_docstring_from_path( mod_path, varname: str ):
     doc_string = None
     for node in ast.walk( ast_root_node ):
         if isinstance( node, (ast.Import, ast.ImportFrom) ): 
-            doc_string = __traceImport( node, varname, mod_content )      
+            doc_string = __traceImport( node, varname, mod_content, doc_string )
+            #print("current doc_string: %s" % (doc_string,) )      
             if doc_string: break
         if isinstance( node, ast.Assign ): 
             doc_string = __docStringFromNextAssign( node, varname, doc_string )
+            #print("current doc_string: %s" % (doc_string,) )
+            
+    #print("%s doc_string: %s" % (varname, doc_string) )             
     return doc_string
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
