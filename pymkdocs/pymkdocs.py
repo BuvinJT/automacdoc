@@ -683,8 +683,8 @@ def create_class(package_name, name: str, obj, options: dict):
     # returned by inspect   
     methods.extend( inspect.getmembers(obj, inspect.ismethod) )
     methods.sort(key=operator.itemgetter(0))
-    defaultInst = None
-    defaultParms = []
+    default_inst = None
+    default_parms = []
     for n, o in methods:
         all_method_names.append(n)
         if n=='__init__':
@@ -693,12 +693,12 @@ def create_class(package_name, name: str, obj, options: dict):
             (args, 
              varargs, varkw, defaults, kwonlyargs, kwonlydefaults, # @UnusedVariable  
              annotations) = inspect.getfullargspec(o)
-            #print( name, args, varargs, varkw, defaults, 
-            #       kwonlyargs, kwonlydefaults, annotations )    
+            print( name, args, varargs, varkw, defaults, 
+                   kwonlyargs, kwonlydefaults, annotations )    
             for arg in args:
                 if arg=='self': continue
                 annot = annotations.get(arg)                
-                defaultParms.append( '%s()' % (annot.__name__,) 
+                default_parms.append( '%s()' % (annot.__name__,) 
                                      if annot else 'None' )             
         else :
             f = create_fun(n, o, options)
@@ -706,11 +706,11 @@ def create_class(package_name, name: str, obj, options: dict):
 
     import_name = name.split('.')[0]
     import_statement = "from %s import %s" % (package_name, import_name)               
-    create_statement = "%s(%s)" % (name, ','.join(defaultParms))            
+    create_statement = "%s(%s)" % (name, ','.join(default_parms))            
     try: 
-        #print( import_statement + "\n" + create_statement + "\n" )                
+        print( import_statement + "\n" + create_statement + "\n" )                
         exec( import_statement )               
-        defaultInst = eval( create_statement )
+        default_inst = eval( create_statement )
     except: pass
     #except Exception as e:
     #    __on_warn_exc( "Can't create default constructed object:\n" +
@@ -722,8 +722,8 @@ def create_class(package_name, name: str, obj, options: dict):
     v = None    
     for n, o in inspect.getmembers(obj):        
         if n not in builtin_names and n not in all_method_names:
-            if defaultInst: 
-                v = getattr(defaultInst, n, None)
+            if default_inst: 
+                v = getattr(default_inst, n, None)
             d = None # updated later via ast parsing
             c =(create_class(package_name, "%s.%s" % (name,n), o, options) 
                 if inspect.isclass(o) else None )
@@ -773,8 +773,8 @@ def create_class(package_name, name: str, obj, options: dict):
                             name = target.attr
                             #if isinstance(statement.value, ast.Name):
                             #    value = str(statement.value.id)
-                            obj =( getattr(defaultInst, name, None) 
-                                   if defaultInst else None )
+                            obj =( getattr(default_inst, name, None) 
+                                   if default_inst else None )
                             try:    next_statement=node.body[i+1]
                             except: next_statement=None
                             if( isinstance(next_statement, ast.Expr) and 
