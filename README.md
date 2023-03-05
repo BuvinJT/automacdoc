@@ -1,22 +1,13 @@
 # pyMkDocs Utility
 
-(Base on: https://github.com/AlexandreKempf/automacdoc)
-
 ## What is pyMkDocs?
 pyMkDocs is a terminal-based program used to generate documentation for Python projects.
 It extends the features of [MkDocs](https://mkdocs.org).
 
+The original parent project for this is found here: https://github.com/AlexandreKempf/automacdoc
+
 ## What does pyMkDocs do?
 pyMkDocs analyzes Python source code, produces Markdown files for [MkDocs](https://mkdocs.org), and leans on that to generate a website.  While you may use MkDocs against whatever markdown files you have independently produced, until now there has been no means available for *auto generating* a MkDocs project directly from Python source!
-
-## What are my other options?
-
-The typical starting point when comparing Python documentation generators, is the standard library's [pydoc](https://docs.python.org/3/library/pydoc.html) module. 
-While that tool is easy to use, it's not flexible, and the end result leaves something to be desired. 
-
-In contrast, many would consider the "gold standard" for auto generating Python documentation to be [Sphinx](https://www.sphinx-doc.org/). But that tool is complicated, and uses [reStructuredText](https://en.wikipedia.org/wiki/ReStructuredText). Unfortunately, reStructuredText is quite unpleasant to work with and has very limited applications. 
-
-[Markdown](https://en.wikipedia.org/wiki/Markdown) is fast and easy to type freehand, there are many tools which auto generate it, and its use is widespread. Regardless of the doc generator employed, the most laborious task involved in documenting your code is likely to be writing [Doc Strings](https://www.python.org/dev/peps/pep-0257/).  In those contexts, having Markdown available to you, can be immensely desirable!
 
 ## How do I install pyMkDocs?
 
@@ -44,16 +35,16 @@ Usage: pymkdocs source destination [-m/-r] [-c] [-s]
 
 ### Basic Program Scenario
 
-> Note: This is the ideal way to get your feet wet with this too!
+> Note: This is the ideal way to get your feet wet with this tool!
 
-- Change to the directory of a Python project you're writing. 
+- Change to the directory of a Python project of your choice. 
 
 Example:
 ~~~ 
 cd pymkdocs/example
 ~~~
 
-- Run pyMkDocs against the source in "raw mode". 
+- Run pyMkDocs against the source in "raw mode".  (See below for more details.)
 
 Example:
 ~~~ 
@@ -80,15 +71,15 @@ pymkdocs some_library ./some_library_docs -s
 ~~~
 cd my_library
 pip3 install .
-pymkdocs ./my_library . -s
+pymkdocs ./my_library .
 ~~~
 
-- If your code changes have modified the library's public interface, those changes will be 
-  auto documented for you! 
+> Note: you must add a `-s` switch after the `pymkdocs` command above, if you wish to view the regenerated website locally.
 
-- Commit your code changes in parallel with doc changes.  This way, your git history will always
-  align with the docs! 
-
+- If your code changes have modified the library's public interface, those changes will be auto documented for you! 
+  
+- Commit your code changes in parallel with doc changes.  This way, your git history will always align with the docs! 
+  
   > This is an easy way to facilitate "historic docs".  Consumers of your library could always revert the repo back to a given "tag", to acquire the documentation for the exact version they are implementing.
 
 ## Content Produced 
@@ -328,8 +319,6 @@ def fun(arg1: int, arg2: str = 'Hello World!'):
 
 ![recommended docstring screenshot](img/recommend_docstring.png)
 
-
-
 ## Attribute Docstrings
 
 The formal standards for Python docstrings are defined in [PEP-257](https://www.python.org/dev/peps/pep-0257/). They do NOT include "attribute docstrings". There is, therefore, no *official* means to document how to use class and module attributes. The primary reason for this
@@ -340,3 +329,11 @@ That said, it has been suggested that *unofficial* documentation generators (suc
 ## Additional Features
 Check out the example source. There, you will find tons of fancy elements you can now instantly add to your documentation, leveraging the power of many [MkDocs](https://mkdocs.org) extensions!
 
+## What are my other options?
+
+The typical starting point when comparing Python documentation generators, is the standard library's [pydoc](https://docs.python.org/3/library/pydoc.html) module. 
+While that tool is easy to use, it's not flexible, and the end result leaves something to be desired. 
+
+In contrast, many would consider the "gold standard" for auto generating Python documentation to be [Sphinx](https://www.sphinx-doc.org/). But that tool is complicated, and uses [reStructuredText](https://en.wikipedia.org/wiki/ReStructuredText). Unfortunately, reStructuredText is quite unpleasant to work with and has very limited applications. 
+
+[Markdown](https://en.wikipedia.org/wiki/Markdown) is fast and easy to type freehand, there are many tools which auto generate it, and its use is widespread. Regardless of the doc generator employed, the most laborious task involved in documenting your code is likely to be writing [Doc Strings](https://www.python.org/dev/peps/pep-0257/).  In those contexts, having Markdown available to you can be immensely desirable!
