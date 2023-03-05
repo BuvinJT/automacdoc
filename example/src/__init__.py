@@ -31,6 +31,6 @@ from os import abc
 
 #------------------------------------------------------------------------------
 # docs > Config Parser.md
-""" docs : virtual
+""" docs : virtual_code
 from configparser import ConfigParser
 """ 
