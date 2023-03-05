@@ -28,13 +28,14 @@ MAGIC_APPEND_DOC_COMMENT    = '# docs >>'
 MAGIC_PROSE_COMMENT_START   = '""" docs : prose'
 MAGIC_PROSE_COMMENT_END     = TRIPLE_DOUBLE
 
-MAGIC_VIRTUAL_COMMENT_START = '""" docs : virtual'
+MAGIC_VIRTUAL_COMMENT_START = '""" docs : virtual_code'
 MAGIC_VIRTUAL_COMMENT_END   = TRIPLE_DOUBLE
+
+MAGIC_VIRTUAL_VALUE_COMMENT     = 'docs : virtual_value=' 
+MAGIC_CONDITIONAL_VALUE_COMMENT = 'docs : conditional_value' 
 
 MAGIC_NULL                  = 'null'
 MAGIC_MODDOC_COMMENT        = '# docs : __doc__' 
-
-MAGIC_VAR_UNDEF_COMMENT     = 'docs > var_undef' 
 
 TXT,SRC=range(2)
 
@@ -73,8 +74,8 @@ init_md = (
 var_md = ( 
     "### **{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, type, default
-var_undef_md = ( 
-    "### **{0}** *{1}* default: <span style=""color:gray"">undefined ({2}?)</span> {{ #{0} data-toc-label={0} }}\n\n".format
+var_cond_val_md = ( 
+    "### **{0}** *{1}* default: <span style=""color:gray"">&lt;{2}&gt;</span> {{ #{0} data-toc-label={0} }}\n\n".format
 )  # name, type, default
 all_vars_md= (
     "## **Constants and Globals** {{ #Constants-and-Globals data-toc-label=\"Constants and Globals\" }}\n\n".format
@@ -377,7 +378,8 @@ def write_class(md_file, clas, options):
     **Parameters**
     > **md_file:** `file` -- file object of the markdown file
     > **clas:** `dict` -- class information organized as a dict (see `create_clas`)
-
+    > **options:** `dict` -- extended options
+    
     """
     md_file.writelines(class_name_md(clas["name"]))
     md_file.writelines(doc_md(clas["doc"]))
@@ -440,7 +442,8 @@ def write_function(md_file, fun, options):
     **Parameters**
     > **md_file:** `file` -- file object of the markdown file
     > **fun:** `dict` -- function information organized as a dict (see `create_fun`)
-
+    > **options:** `dict` -- extended options
+ 
     """
     if fun is None: return
     md_file.writelines(function_name_md(fun["name"], fun["args"]))
@@ -456,7 +459,8 @@ def write_method(md_file, method, clas, is_static, options):
     > **md_file:** `file` -- file object of the markdown file
     > **method:** `dict` -- method information organized as a dict (see `create_fun`)
     > **class:** `dict` -- class information organized as a dict (see `create_fun`)
-
+    > **options:** `dict` -- extended options
+    
     """
     if method is None: return
     md_file.writelines(
@@ -479,20 +483,26 @@ def write_variable(md_file, var, options):
 
     """
     if var is None: return
-    
+        
     doc_lines_in  = var["doc"].split(NEW_LINE)
     doc_lines_out = []
-    is_magic_var_undef = False
+    magic_value = None
+    is_magic_cond_val = False
     for line in doc_lines_in:
         line = line.strip()
-        #print(line)
-        if line.startswith( MAGIC_VAR_UNDEF_COMMENT ): is_magic_var_undef = True
+        if   line.startswith( MAGIC_VIRTUAL_VALUE_COMMENT ): 
+            try: magic_value = line.split( MAGIC_VIRTUAL_VALUE_COMMENT )[1].strip()
+            except: pass         
+        elif line.startswith( MAGIC_CONDITIONAL_VALUE_COMMENT ): is_magic_cond_val = True
         else : doc_lines_out.append( line )
-    doc = NEW_LINE.join(doc_lines_out)
-    #if  is_magic_var_undef  : print( "%s is_magic_var_undef" % (var["name"],) )
-    md_file.writelines( var_undef_md(var["name"],var["type"],var["value"])
-                        if is_magic_var_undef 
-                        else  var_md(var["name"],var["type"],var["value"]) )
+    doc = NEW_LINE.join(doc_lines_out)            
+    value = magic_value if magic_value else var["value"]
+    
+    md_file.writelines(   
+        var_cond_val_md(var["name"],var["type"],value)
+        if is_magic_cond_val else  
+        var_md(var["name"],var["type"],value) 
+    )
     md_file.writelines(doc_md(doc))
 
 def write_attribute(md_file, att, is_static, options, clas=None):
@@ -1176,7 +1186,8 @@ def __var_docstring( module, varname: str ):
         return None if is_var_found else False 
 
     def __get_import_module_name( root_node, varname ):
-        # search recursively, in case the import is conditional     
+        # search recursively, to handle imports being made in 
+        # lower level blocks e.g. conditional imports     
         for child in ast.walk( root_node ):
             if isinstance( child, ast.ImportFrom ):               
                 names = [n.asname if n.asname else n.name  

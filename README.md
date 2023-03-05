@@ -167,7 +167,7 @@ Following this comment pattern, "write" this markdown to the current document.
 
 **PACKAGE DOCSTRING**: `# docs : __doc__` 
 
-Inject the the package doc string into the current document. 
+Inject the the package docstring into the current document. 
 
 
 **DISCARD**: `# docs > null`
@@ -177,25 +177,39 @@ Discards the documentation for whatever source code follows.
 **VIRTUAL CODE**:
 
 ```py3
-""" docs > virtual
+""" docs : virtual_code
 is_virtual_code_cool = True
 """
 ````
 
-**VARIABLE UNDEFINED**:
+Use this to inject "virtual code", without actually modifying your functional 
+source, for the purpose of having the documentation generator treat it as though 
+it were truly there. This provides a means to create documentation in a completely 
+open ended manner, which is is not tightly bound to literal source.   
+ 
+**VIRTUAL VALUE**:
+
+```py3
+my_global_number=5
+""" This number may differ between run contexts.
+docs : virtual_value=500
+"""
+````
+
+Use this in an attribute/variable docstring to override the default value which would 
+otherwise appear in the documentation. 
+
+**CONDITIONAL VALUE**:
 
 ```py3
 MY_CONSTANT="brilliance"
 """ Here is a docstring for my constant.
-docs > var_undef
+docs : conditional_value
 """
 ````
 
-Following this comment pattern, the parsing / object inspecting performed
-by the tool will act as though the virtual code were actually present,
-but without it having to truly be included in your project.
-This provides a means to create documentation in a completely open ended manner
-that is is not tightly bound to any literal source.   
+Use this in an attribute/variable docstring to modify the style of the default value  
+in the documentation, so as to indicate it is "conditional". 
 
 ## Minimal project layout
 
