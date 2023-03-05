@@ -4,7 +4,7 @@
 pyMkDocs is a terminal-based program used to generate documentation for Python projects.
 It extends the features of [MkDocs](https://mkdocs.org).
 
-The original parent project for this is found here: https://github.com/AlexandreKempf/automacdoc
+The parent project is found here: https://github.com/AlexandreKempf/automacdoc
 
 ## What does pyMkDocs do?
 pyMkDocs analyzes Python source code, produces Markdown files for [MkDocs](https://mkdocs.org), and leans on that to generate a website.  While you may use MkDocs against whatever markdown files you have independently produced, until now there has been no means available for *auto generating* a MkDocs project directly from Python source!
@@ -329,7 +329,7 @@ That said, it has been suggested that *unofficial* documentation generators (suc
 ## Additional Features
 Check out the example source. There, you will find tons of fancy elements you can now instantly add to your documentation, leveraging the power of many [MkDocs](https://mkdocs.org) extensions!
 
-## What are my other options?
+## What other options exist for auto documentation?
 
 The typical starting point when comparing Python documentation generators, is the standard library's [pydoc](https://docs.python.org/3/library/pydoc.html) module. 
 While that tool is easy to use, it's not flexible, and the end result leaves something to be desired. 
