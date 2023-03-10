@@ -13,15 +13,17 @@ pyMkDocs analyzes Python source code, produces Markdown files for [MkDocs](https
 
 `pip install pymkdocs`
 
-> Note: it is not necessary to explicitly install MkDocs first. All dependencies will be automatically installed as needed!
+> Note: It is not necessary to install MkDocs first. All dependencies are installed automatically.
 
 ## How do I use pyMkDocs?
 
-pyMkDocs analyzes your Python source and generates markdown files from them. It then employs MkDocs to produce html based documentation from the markdown! Specifically, the pyMkDocs creates:
+Once you have installed pyMkDocs, it will become available to you as a command line utility (found from within any directory via your "system path").
 
-  - a 'mkdocs.yml' file, which is a configuration file for MkDocs
-  - a 'docs' folder, containing the markdown 
-  - a 'site' folder, containing the static web site content
+The tool analyzes your Python source and generates markdown files from them. It then employs MkDocs to produce html based documentation from the markdown. Specifically, the pyMkDocs process creates:
+
+  - a `mkdocs.yml` file, which is a configuration file for MkDocs
+  - a `docs` folder, containing the markdown 
+  - a `site` folder, containing the static web site content
 
 ### Command line specs
 
@@ -100,7 +102,7 @@ Example:
 pip install pymkdocs
 ~~~
 
-2. Run pyMkDocs against that library in "magic mode". 
+2. Run pyMkDocs against that library in "magic mode", providing the **import** name as the "source" (rather than a directory path). 
 
 Example: 
 ~~~ 
@@ -109,21 +111,21 @@ pymkdocs pymkdocs ./pymkdocs_docs -s
 
 ### Library Maintenance Scenario
 
-If you are maintaining a Python library, we recommend using the following development procedures, to implement auto documentation.
+If you are maintaining a Python library, we recommend standardizing the following development procedures to implement auto documentation.
 
-1. Create your own library.  
+1. Create your own Python library.  
 
-2. Start using pymkdocs throughout the development process. (Ideally including doc strings and "magic comments" - see below).
+2. Start using pymkdocs throughout the development process. Ideally, include doc strings and "magic comments" in your source (see below).
 
 3. Whenever you test your code changes locally, run a script such as the following to reinstall the library in your testing environment, and simultaneously regenerate the documentation within the project's directory:
 
 ~~~
 cd my_library
-pip3 install .
+pip install .
 pymkdocs my_library .
 ~~~
 
-> Note: you must add a `-s` switch after the `pymkdocs` command above, if you wish to view the regenerated website locally.
+> Note: you would add a `-s` switch at the end of the `pymkdocs` command, to view the updated documentation each time the script is run.
 
 4. All modifications to the library's interface will then be auto documented! You can't forget to do it, or be forced into an additional manual task!
   
