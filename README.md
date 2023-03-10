@@ -33,55 +33,88 @@ Usage: pymkdocs source destination [-m/-r] [-c] [-s]
 -s: serve test site
 ```
 
-### Basic Program Scenario
+### Basic Scenario
 
-> Note: This is the ideal way to get your feet wet with this tool!
+> This is the recommended way to try pyMkDocs for the first time! The example commands may be executed exactly as shown if you clone this repo.
 
-- Change to the directory of a Python project of your choice. 
+The following procedure may be used to document the source of a Python project in a "simple", *straight forward*, manner.  
+
+Typically, you would use this method for internal documentation, especially for executable programs. The docs produced this way may prove valuable for program design visualization and source navigation.
+
+1. Change to the directory of a Python project of your choice. 
 
 Example:
 ~~~ 
 cd pymkdocs/example
 ~~~
 
-- Run pyMkDocs against the source in "raw mode".  (See below for more details.)
+2. Run pyMkDocs against that source in "raw mode" (with source code snippets included).
 
 Example:
 ~~~ 
 pymkdocs src . -r -c -s
 ~~~
 
+### Magic Docs Scenario
+
+The following procedure may be used to document the source of a Python project in a more "sophisticated" manner.  
+
+Typically, you would use this method to create documentation for the clients of a library. See below for more details on "Magic Mode".
+
+1. Change to the directory of a Python project of your choice. 
+
+Example:
+~~~ 
+cd pymkdocs/example
+~~~
+
+2. Run pyMkDocs against that source in "magic mode".  
+
+Example:
+~~~ 
+pymkdocs src . -m -s
+~~~
+
 ### Third Party Library Scenario
 
-- Pip install "some_library".  Ideally, pick one which has little to no documentation available.
-- Run pyMkDocs against that library, to create some docs for yourself on the fly! 
+The following procedure may used to document the source of a third party library. This can be extremely useful when applied against a code base which has little to no documentation of its own! 
+
+1. Pip install a library of your choice.  
+
+Example:
+~~~ 
+pip install pymkdocs
+~~~
+
+2. Run pyMkDocs against that library in "magic mode". 
 
 Example: 
 ~~~ 
-pip install pymkdocs
 pymkdocs pymkdocs ./pymkdocs_docs -s
 ~~~
 
-### Library Development Scenario
+### Library Maintenance Scenario
 
-- Create your own library.  
-- Start using pymkdocs throughout the development process.
-- Whenever you test your code changes, run a script such as the following to reinstall the library, and simultaneously regenerate the documentation  (within the project's directory):
+If you are maintaining a Python library, we recommend using the following development procedures, to implement auto documentation.
+
+1. Create your own library.  
+
+2. Start using pymkdocs throughout the development process. (Ideally including doc strings and "magic comments" - see below).
+
+3. Whenever you test your code changes locally, run a script such as the following to reinstall the library in your testing environment, and simultaneously regenerate the documentation within the project's directory:
 
 ~~~
 cd my_library
 pip3 install .
-pymkdocs ./my_library .
+pymkdocs my_library .
 ~~~
 
 > Note: you must add a `-s` switch after the `pymkdocs` command above, if you wish to view the regenerated website locally.
 
-- If your code changes have modified the library's public interface, those changes will be auto documented for you! 
+4. All modifications to the library's interface will then be auto documented! You can't forget to do it, or be forced into an additional manual task!
   
-- Commit your code changes in parallel with doc changes.  This way, your git history will always align with the docs! 
+5. Commit your code changes in parallel with the doc changes. The docs in your git history will then always align with the source! 
   
-  > This is an easy way to facilitate "historic docs".  Consumers of your library could always revert the repo back to a given "tag", to acquire the documentation for the exact version they are implementing.
-
 ## Content Produced 
 
 Here is a visual aide to help depict what you will be creating by using the utility. 
