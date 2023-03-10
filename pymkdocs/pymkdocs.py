@@ -12,15 +12,21 @@ import tempfile
 import subprocess
 import shutil
 from future.utils import string_types
-#import collections
+import collections
 # ----------------
  
 RAW_MODE, MAGIC_MODE = range(2)
+"""
+Parsing Mode. See the ReadMe for info.
+"""
 
-TAB           = '\t'
-TAB_SPACES    = '    '
-NEW_LINE      = '\n'
-TRIPLE_DOUBLE = '"""'
+TAB             = '\t'
+TAB_SPACES      = '    '
+NEW_LINE        = '\n'
+TRIPLE_DOUBLE   = '"""'
+DOT             = '.'
+DOT_PY_EXT      = '.py'
+PY_COMMENT_CHAR = '#'
 
 MAGIC_START_DOC_COMMENT     = '# docs >'
 MAGIC_APPEND_DOC_COMMENT    = '# docs >>'
@@ -204,7 +210,7 @@ def write_doc(src: str, mainfolder: str, options:dict=None ):
                     mdMap[mdfile_name].append((SRC,source_lines))
         else:                
             mdfile_name = "%s.md" % (package_name,) 
-            mdMap[mdfile_name]=lines  
+            mdMap[mdfile_name]=[(SRC,lines)]  
                   
         package_path = os.path.dirname( magic_init_path )                  
         
@@ -1016,10 +1022,155 @@ def __get_import_var( module, varname: str, options: dict ):
         if n==varname:
             return create_var(n, o, o, __var_docstring(module,n), options)
 
-# REDUNDANT WORK ???!        
-# ------------------------------------------------------------------------          
-"""       
-def __get_import_dtls( file_content ):
+def __docstring( ast_node, varname, mod_source ):
+    """
+    Returns docstring (as str), 
+        or None if the variable is found but has no docstring
+        or False if the variable is not found 
+    Search only the top level of the root_node,
+    because the definition of this type of docstring is:  
+    "String literals occurring immediately after a simple assignment 
+    at the top level of a module, class, or __init__ method...". 
+    """    
+    #print( "searching for var", varname )
+    is_var_found = False
+    for child in ast.iter_child_nodes( ast_node ):        
+        #if not is_var_found:
+        #     ...        
+        if isinstance( child, ast.Assign ): 
+            for target in child.targets:
+                if isinstance( target, ast.Name ):
+                    if target.id==varname:
+                        is_var_found = True
+                        return __nodeDocString( child, mod_source ) 
+        if isinstance( child, ast.Tuple ):
+            for target in child.elts:
+                if isinstance( target, ast.Name ):
+                    if target.id==varname:
+                        is_var_found = True
+                        return __nodeDocString( child, mod_source ) 
+            
+        #     ...
+        #else : 
+        #    if( isinstance( child, ast.Expr ) and 
+        #        isinstance( child.value, ast.Str ) ):
+        #        return set_indent( child.value.s, 0 )                                
+        #    else: 
+        #        return None                                                         
+    return None if is_var_found else False 
+
+def __nodeDocString( node, mod_source ):
+    mod_lines = mod_source.split( NEW_LINE )
+    try:    next_line = mod_lines[ node.lineno ].strip()
+    except: next_line = ""
+    if next_line.startswith( TRIPLE_DOUBLE ):
+        #print("triple double found on line %d"  % (node.lineno+1,) )
+        line_parts = next_line.split( TRIPLE_DOUBLE )
+        #print("line_parts %s"  % (line_parts,) )
+        try:    doc_string = line_parts[1]
+        except: doc_string = ""    
+        is_doc_closed = len(line_parts) > 2  
+        doc_lineno = node.lineno
+        while not is_doc_closed:                                                            
+            doc_lineno += 1                 
+            try:               
+                line_parts =(mod_lines[ doc_lineno ].strip()
+                                .split( TRIPLE_DOUBLE ) )
+                doc_string += NEW_LINE + line_parts[ 0 ]
+                is_doc_closed = len(line_parts) > 1
+            except: is_doc_closed = True   
+        #print("extracted doc_string: %s"  % (doc_string,) )    
+        return doc_string                            
+    return None
+
+_prior_import_module_name = None
+
+def __var_docstring( module, varname: str ):
+       
+    def __get_import_module_name( root_node, varname ):
+        # search recursively, to handle imports being made in 
+        # lower level blocks e.g. conditional imports     
+        for child in ast.walk( root_node ):
+            if isinstance( child, ast.ImportFrom ):               
+                names = [n.asname if n.asname else n.name  
+                         for n in child.names]
+                if varname in names: return child.module 
+        return None
+      
+    try: 
+        mod_source = inspect.getsource( module )
+        root_node = ast.parse( mod_source )
+        docstring = __docstring( root_node, varname, mod_source )        
+        #print( "docstring", docstring )
+        if docstring == False:
+            module_name = __get_import_module_name( root_node, varname )
+            #print( "module_name", module_name )
+            if not module_name: 
+                raise RuntimeWarning("Can't find assignment or import")
+                        
+            #------------------------------------------------------------
+            # If recursion is detected, the escape hatch is to use an alternate 
+            # (longer, more error prone...) method for import tracing.
+            global _prior_import_module_name  
+            is_recurse = module_name == _prior_import_module_name 
+            if is_recurse: 
+                #print( "is_recurse ?" )
+                mod_filepath = __get_module_path( module_name )
+                docstring = __var_docstring_from_source( 
+                    mod_source, mod_filepath, varname )             
+            _prior_import_module_name = module_name
+            if is_recurse: return docstring 
+            #------------------------------------------------------------
+                        
+            import_module = __get_import_module( module_name )
+            return __var_docstring( import_module, varname )
+        else: return docstring        
+    except Exception as e:
+        __on_warn_exc("cannot find / parse source for variable %s" % 
+                      (varname), e) 
+        return None 
+
+ 
+def __var_docstring_from_source( mod_source, mod_path: str, varname: str ):    
+    import_details = __get_import_dtls( mod_source, mod_path )
+    for imp in import_details:                            
+        if ".".join(imp.name) == varname:                  
+            #print( "Is it within %s?" % (imp.real_path,) )
+            return __var_docstring_from_path( imp.real_path, varname )
+    return False    
+
+def __var_docstring_from_path( mod_path, varname: str ):
+
+    def __traceImport( node, varname, mod_source, mod_path ):
+        names = [n.asname if n.asname else n.name for n in node.names]
+        if varname in names: 
+            return __var_docstring_from_source( mod_source, mod_path, varname ) 
+        else: return None
+                
+    #print("searching for %s docstring in %s" % (varname, mod_path) ) 
+    try: 
+        with open( mod_path, 'r' ) as f: mod_source=f.read()
+    except Exception as e:
+        __on_err_exc("cannot read from path: %s" % (mod_path,), e)
+        return None 
+    
+    try: ast_root_node = ast.parse(  mod_source )    
+    except Exception as e: 
+        __on_warn_exc("failed to parse source from %s" % (mod_path,), e)
+        return None
+
+    doc_string = None
+    for node in ast.walk( ast_root_node ):
+        if isinstance( node, (ast.Import, ast.ImportFrom) ): 
+            doc_string = __traceImport( node, varname, mod_source, mod_path )
+        if isinstance( node, ast.Assign ):
+            doc_string = __docstring( node, varname, mod_source ) 
+        if doc_string: break            
+            
+    #print("%s doc_string: %s" % (varname, doc_string) )             
+    return doc_string
+
+def __get_import_dtls( file_content, file_path ):
 
     __MEMBER_DELIM = __SUB_MOD_DELIM = '.'            
     __IMPORT_TMPLT       = "import %s"
@@ -1032,14 +1183,24 @@ def __get_import_dtls( file_content ):
         "real_mod", "real_mbr", "real_path" 
     ]) 
             
-    def __yieldImport( file_content ):
+    def __yieldImport( file_content, file_path ):
         def isMod( modName ):
             try: 
                 exec( __IMPORT_TMPLT % (modName,) ) 
                 return eval( __IS_MOD_TMPLT % (modName,) )
             except: return False    
 
-        def modPath( modName ):
+        def modPath( modName, file_path, rel_import_lvl=None ):
+            print( "modPath", modName, file_path, rel_import_lvl )
+            if rel_import_lvl > 0:
+                source_dir_path = file_path
+                for _ in range(rel_import_lvl):  
+                    source_dir_path = os.path.split( source_dir_path )[0]
+                path = os.path.join( source_dir_path, modName + DOT_PY_EXT )
+                print( "path?=", path ) 
+                if os.path.exists( path ):
+                    print( "rel_import_lvl modPath=", path ) 
+                    return path
             try: 
                 exec( __IMPORT_TMPLT % (modName,) ) 
                 return eval( __GET_MOD_PATH_TMPLT % (modName,) )
@@ -1055,9 +1216,10 @@ def __get_import_dtls( file_content ):
         for node in ast.walk( root ):
             #print(node)
             if   isinstance( node, ast.Import ): module = []
-            elif isinstance( node, ast.ImportFrom ):                
-                try:    module = node.module.split( __SUB_MOD_DELIM )
-                except: module = [] # example source here: from . import something
+            elif isinstance( node, ast.ImportFrom ):                                        
+                try:    module = node.module.split( __SUB_MOD_DELIM )                    
+                except: module = []
+                rel_import_lvl = rel_import_lvl = node.level                                                                    
             else: continue        
             for n in node.names:                
                 name = n.name.split( __MEMBER_DELIM )                    
@@ -1073,146 +1235,18 @@ def __get_import_dtls( file_content ):
                     # start with nothing, then collect more from the end each time
                     tail = "" if i==0 else __MEMBER_DELIM.join( impParts[-i:] )
                     if isMod( head ):
-                        real_mod = head             
-                        real_path = modPath( real_mod )
+                        real_mod = head                                     
+                        real_path = modPath( 
+                            real_mod, file_path, rel_import_lvl )
                         if isChild( real_mod, tail ): real_mbr = tail                        
                         break
-                #print(module, name, n.asname, node.lineno, real_mod, real_mbr, real_path)    
+                print(module, name, n.asname, node.lineno, real_mod, real_mbr, real_path)    
                 yield ImportInfo( module, name, n.asname, node.lineno,
                                   real_mod, real_mbr, real_path )
                 # Execution resumes here (with the locals preserved!) 
                 # on the next call to this function per the magic of "yield"...                           
         
-    return [imp for imp in __yieldImport( file_content )]
-                
-def __var_docstring( module, varname: str ):
-    return __var_docstring_from_path( __get_source_path( module, varname ), varname )
-
-def __var_docstring_from_path( mod_path, varname: str ):
-
-    def __traceImport( node, varname, mod_content, doc_string ):
-        names = [n.asname if n.asname else n.name for n in node.names]
-        is_found = varname in names
-        if is_found:
-            #print( "%s is an import within %s... I need its assignment!" % (varname,mod_path) )
-            import_details = __get_import_dtls( mod_content )
-            for imp in import_details:                            
-                if ".".join(imp.name) == varname:                  
-                    #print( "Is it within %s?" % (imp.real_path,) )
-                    return __var_docstring_from_path( imp.real_path, varname )
-        return doc_string
-        
-    def __docStringFromNextAssign( node, varname, doc_string ):
-        mod_lines = None    
-        for target in node.targets:
-            #try: print("varname %s => target.id %s type: %s" % (varname,target.id,type(target)) )
-            #except: pass
-            if isinstance( target, ast.Name ) and target.id == varname:
-                #print("found assignment for %s on line %d"  % (varname,node.lineno) )
-                if mod_lines is None: mod_lines = mod_content.split( NEW_LINE )
-                try:    next_line = mod_lines[ node.lineno ].strip()
-                except: next_line = ""
-                if next_line.startswith( TRIPLE_DOUBLE ):
-                    #print("triple double found on line %d"  % (node.lineno+1,) )
-                    line_parts = next_line.split( TRIPLE_DOUBLE )
-                    #print("line_parts %s"  % (line_parts,) )
-                    try:    doc_string = line_parts[1]
-                    except: doc_string = ""    
-                    is_doc_closed = len(line_parts) > 2  
-                    doc_lineno = node.lineno
-                    while not is_doc_closed:                                                            
-                        doc_lineno += 1                 
-                        try:               
-                            line_parts =(mod_lines[ doc_lineno ].strip()
-                                            .split( TRIPLE_DOUBLE ) )
-                            doc_string += NEW_LINE + line_parts[ 0 ]
-                            is_doc_closed = len(line_parts) > 1
-                        except: is_doc_closed = True   
-                    #print("extracted doc_string: %s"  % (doc_string,) )    
-                    return doc_string                            
-        return doc_string
-    
-    #print("searching for %s docstring in %s" % (varname, mod_path) ) 
-    try: 
-        with open( mod_path, 'r' ) as f: mod_content=f.read()
-    except Exception as e:
-        __on_err_exc("cannot read from path: %s" % (mod_path,), e)
-        return None 
-    
-    try: ast_root_node = ast.parse( mod_content )    
-    except Exception as e: 
-        __on_warn_exc("failed to parse source from %s" % (mod_path,), e)
-        return None
-
-    doc_string = None
-    for node in ast.walk( ast_root_node ):
-        if isinstance( node, (ast.Import, ast.ImportFrom) ): 
-            doc_string = __traceImport( node, varname, mod_content, doc_string )
-            #print("current doc_string: %s" % (doc_string,) )      
-            if doc_string: break
-        if isinstance( node, ast.Assign ): 
-            doc_string = __docStringFromNextAssign( node, varname, doc_string )
-            #print("current doc_string: %s" % (doc_string,) )
-            
-    #print("%s doc_string: %s" % (varname, doc_string) )             
-    return doc_string
-"""
-
-def __var_docstring( module, varname: str ):
-    
-    def __docstring( root_node, varname ):
-        """
-        Returns docstring (as str), 
-            or None if the variable is found but has no docstring
-            or False if the variable is not found 
-        Search only the top level of the root_node,
-        because the definition of this type of docstring is:  
-        "String literals occurring immediately after a simple assignment 
-        at the top level of a module, class, or __init__ method...". 
-        """
-        is_var_found = False
-        for child in ast.iter_child_nodes( root_node ):
-            if is_var_found:
-                if( isinstance( child, ast.Expr ) and 
-                    isinstance( child.value, ast.Str ) ):
-                    return set_indent( child.value.s, 0 )                                
-                else: return None                                
-            else :                              
-                if isinstance( child, ast.Assign ): 
-                    for target in child.targets:
-                        if isinstance( target, ast.Name ):
-                            is_var_found = target.id==varname
-                            if is_var_found: break           
-        return None if is_var_found else False 
-
-    def __get_import_module_name( root_node, varname ):
-        # search recursively, to handle imports being made in 
-        # lower level blocks e.g. conditional imports     
-        for child in ast.walk( root_node ):
-            if isinstance( child, ast.ImportFrom ):               
-                names = [n.asname if n.asname else n.name  
-                         for n in child.names]
-                if varname in names: return child.module 
-        return None
-   
-    #print( "__var_docstring", varname )    
-    try: 
-        mod_source = inspect.getsource( module )
-        root_node = ast.parse( mod_source )
-        docstring = __docstring( root_node, varname )
-        #print( "docstring", docstring )
-        if docstring == False:
-            module_name = __get_import_module_name( root_node, varname )
-            #print( "module_name", module_name )
-            if not module_name: 
-                raise RuntimeWarning("Can't find assignment or import")
-            import_module = __get_import_module( module_name )
-            return __var_docstring( import_module, varname )
-        else: return docstring        
-    except Exception as e:
-        __on_warn_exc("cannot find / parse source for variable %s" % 
-                      (varname), e) 
-        return None 
+    return [imp for imp in __yieldImport( file_content, file_path )]
 
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 

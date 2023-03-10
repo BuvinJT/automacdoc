@@ -58,8 +58,8 @@ pymkdocs src . -r -c -s
 
 Example: 
 ~~~ 
-pip install some_library 
-pymkdocs some_library ./some_library_docs -s
+pip install pymkdocs
+pymkdocs pymkdocs ./pymkdocs_docs -s
 ~~~
 
 ### Library Development Scenario
