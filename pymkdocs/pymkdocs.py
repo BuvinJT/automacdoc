@@ -20,13 +20,16 @@ RAW_MODE, MAGIC_MODE = range(2)
 Parsing Mode. See the ReadMe for info.
 """
 
+SPACE           = ' '
+SPACE_HTML      = '&nbsp;'
 TAB             = '\t'
-TAB_SPACES      = '    '
+TAB_HTML        = 4 * SPACE_HTML
+TAB_SPACES      = 4 * SPACE
 NEW_LINE        = '\n'
-TRIPLE_DOUBLE   = '"""'
 DOT             = '.'
 DOT_PY_EXT      = '.py'
 PY_COMMENT_CHAR = '#'
+TRIPLE_DOUBLE   = '"""'
 
 MAGIC_START_DOC_COMMENT     = '# docs >'
 MAGIC_APPEND_DOC_COMMENT    = '# docs >>'
@@ -40,8 +43,11 @@ MAGIC_VIRTUAL_COMMENT_END   = TRIPLE_DOUBLE
 MAGIC_VIRTUAL_VALUE_COMMENT     = 'docs : virtual_value=' 
 MAGIC_CONDITIONAL_VALUE_COMMENT = 'docs : conditional_value' 
 
-MAGIC_NULL                  = 'null'
 MAGIC_MODDOC_COMMENT        = '# docs : __doc__' 
+
+MAGIC_NULL                  = 'null'
+MAGIC_TAB                   = '<tab>'
+MAGIC_SPACE                 = '<spc>'
 
 TXT,SRC=range(2)
 
@@ -247,7 +253,7 @@ def write_doc(src: str, dest: str, options:dict=None ):
         all_names = __get_all_names( module )    
         #print("module", module.__file__)
         #print("all_names", all_names)
-        magic_moddoc = inspect.getdoc(module) or ""
+        magic_moddoc = __markdown_safe( inspect.getdoc(module) or "" )
             
         # Process the "markdown map", generating the requested docs
         #print( "mdMap", mdMap )
@@ -673,7 +679,7 @@ def create_class(package_name, name: str, obj, options: dict):
     
     clas["module"] = inspect.getmodule(obj).__name__
     clas["path"]   = inspect.getmodule(obj).__file__    
-    clas["doc"]    = inspect.getdoc(obj) or ""    
+    clas["doc"]    = __markdown_safe( inspect.getdoc(obj) or "" )    
     clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
     clas["args"]   = inspect.signature(obj)
 
@@ -843,7 +849,7 @@ def create_fun(name: str, obj, options: dict):
     fun["obj"] = obj
     fun["module"] = inspect.getmodule(obj).__name__
     fun["path"] = inspect.getmodule(obj).__file__
-    fun["doc"] = inspect.getdoc(obj) or ""
+    fun["doc"] = __markdown_safe( inspect.getdoc(obj) or "" )
     fun["source"] = rm_docstring_from_source(inspect.getsource(obj))
     fun["args"] = inspect.signature(obj)
     return fun
@@ -882,8 +888,9 @@ def create_att(name: str, obj, val, doc, clas, options: dict):
     att["obj"]   = obj
     att["type"]  = __markdown_safe(type(obj)) 
     att["value"] = __markdown_safe(val)    
-    att["doc"]   = doc or ""
+    att["doc"]   = __markdown_safe(doc or "")    
     att["class"] = clas    
+    print( "doc", att["doc"]  )
     return att
 
 def rm_docstring_from_source( source:str ):
@@ -930,10 +937,12 @@ def set_indent( s:str, lvl:int ):
             if ln.strip() != '': return ln 
         return lines[0]
     lines = s.split(NEW_LINE)
-    first_line = __first_line( lines )
-    lop_len = len(first_line) - len(first_line.lstrip())
+    #first_line = __first_line( lines )
+    #lop_len = len(first_line) - len(first_line.lstrip())
     for i in range(len(lines)):
-        try: lines[i] = tabs + lines[i][lop_len:]
+        try: lines[i] = tabs + lines[i].lstrip()
+            #lines[i] = tabs + lines[i][lop_len:]
+            #print("lines[i]",lines[i])
         except: pass
     return NEW_LINE.join(lines)
 
@@ -1070,7 +1079,6 @@ def __docstring( ast_root_node, varname, mod_source ):
 
     #print( "docstring: ", doc_string )             
     return doc_string
-             
 
 def __rawDocString( mod_lines, lineno ):    
     try:    next_line = mod_lines[ lineno ].strip()
@@ -1437,7 +1445,11 @@ def __docs_dir(yaml_path: str):
                     
 # TODO: define this function correctly
 def __markdown_safe(obj): 
-    return str(obj).replace('<','').replace('>','')
+    s = str(obj)
+    s = set_indent( s, 0 )
+    s = s.replace(MAGIC_SPACE,SPACE).replace(MAGIC_TAB,TAB)
+    s = s.replace('<','').replace('>','')
+    return s 
 
 __warn_msg="[-]Warning: {0}"
 def __on_warn_exc(msg,e,is_silent=False):

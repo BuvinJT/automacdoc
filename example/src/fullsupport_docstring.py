@@ -17,6 +17,20 @@ def fullsupport(x: float, y: float = 3):
 
     #### Heading 4 <small>with secondary text</small>
 
+    Magic Tab: **&lt;tab&gt;** Hard markdown tab / indent
+    
+    Magic Space: **&lt;spc&gt;** Hard markdown space
+
+    <tab>here is an implicit "code/command block" via Magic Tab
+    <tab>a subsequent line magic tabbed in...
+
+    ```
+    Inside a multi-line Code Block {
+    <spc>Leading Magic Space 
+    <tab>Leading Magic Tab 
+    }
+    ```
+    
     !!! note "note block"
         Add a personnal remark here
 
@@ -64,9 +78,6 @@ def fullsupport(x: float, y: float = 3):
 
     ???+ note "open by default"
         And it can be open by default
-
-
-
     """
     #return np.max(x, y)
     return x
