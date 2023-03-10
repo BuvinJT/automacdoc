@@ -1,25 +1,27 @@
 # pyMkDocs Utility
 
 ## What is pyMkDocs?
-pyMkDocs is a terminal-based program used to generate documentation for Python projects.
+pyMkDocs is a command line driven utility used to generate documentation for Python projects.
 It extends the features of [MkDocs](https://mkdocs.org).
 
-The parent project is found here: https://github.com/AlexandreKempf/automacdoc
+This project was built from a predecessor found at: https://github.com/AlexandreKempf/automacdoc
 
 ## What does pyMkDocs do?
-pyMkDocs analyzes Python source code, produces Markdown files for [MkDocs](https://mkdocs.org), and leans on that to generate a website.  While you may use MkDocs against whatever markdown files you have independently produced, until now there has been no means available for *auto generating* a MkDocs project directly from Python source!
+pyMkDocs analyzes Python source code, produces Markdown files for [MkDocs](https://mkdocs.org), and leans on that to generate a website. MkDocs has been available for many years to create websites from markdown, but until now there has been no means to *auto generate* a MkDocs site from Python source!
 
 ## How do I install pyMkDocs?
 
 `pip install pymkdocs`
 
+> Note: it is not necessary to explicitly install MkDocs first. All dependencies will be automatically installed as needed!
+
 ## How do I use pyMkDocs?
 
-pyMkDocs analyzes your Python source and generates markdown files from them. It then employs MkDocs to produce html based documentation from the markdown! This process creates:
+pyMkDocs analyzes your Python source and generates markdown files from them. It then employs MkDocs to produce html based documentation from the markdown! Specifically, the pyMkDocs creates:
 
-  - a 'mkdocs.yml' file, which is a config file for [MkDocs](https://mkdocs.org)
+  - a 'mkdocs.yml' file, which is a configuration file for MkDocs
   - a 'docs' folder, containing the markdown 
-  - a 'site' folder, which is the final web site produced 
+  - a 'site' folder, containing the static web site content
 
 ### Command line specs
 
@@ -35,11 +37,11 @@ Usage: pymkdocs source destination [-m/-r] [-c] [-s]
 
 ### Basic Scenario
 
-> This is the recommended way to try pyMkDocs for the first time! The example commands may be executed exactly as shown if you clone this repo.
+> This is the recommended way to try pyMkDocs for the first time! The below commands may be executed exactly as shown if you have fully cloned / downloaded this git repo to acquire the "example" project.
 
-The following procedure may be used to document the source of a Python project in a "simple", *straight forward*, manner.  
+The following procedure may be used to document the source of a Python project in a basic, straight forward, manner.  
 
-Typically, you would use this method for internal documentation, especially for executable programs. The docs produced this way may prove valuable for program design visualization and source navigation.
+Typically, you would use the "raw" parsing method shown here for internal documentation, especially for executable programs. The docs produced this way may prove valuable for program design visualization and source navigation.
 
 1. Change to the directory of a Python project of your choice. 
 
@@ -48,12 +50,24 @@ Example:
 cd pymkdocs/example
 ~~~
 
-2. Run pyMkDocs against that source in "raw mode" (with source code snippets included).
+2. Run pyMkDocs against the source code in "raw mode".
 
 Example:
 ~~~ 
 pymkdocs src . -r -c -s
 ~~~
+
+**Breaking Down the Parameters**
+
+- `src` is a sub directory of the example project, which contains a collection Python source files and nested directories.
+
+- `.` indicates the output of the process should be written to the current directory, i.e. the root of the example project in this context.
+
+- `-r` specifies "raw mode".
+
+- `-c` specifies "code snippets" are to be included in the documentation.
+
+- `-s` specifies that MkDocs should "serve" the site locally and load it into your default browser for review.
 
 ### Magic Docs Scenario
 
