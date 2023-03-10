@@ -178,11 +178,11 @@ To use this method:
 - Add **your own** Markdown files to the `docs` folder
 - Run pyMkDocs!
 
-The result of this will be similiar to creating a whole new site, accept your pre-existing Markdown files will be used to generate site pages and they will be automatically added to the top level of your table of contents! 
+The result of this will be similiar to creating a whole new site, except your pre-existing markdown files will be used to generate site pages and they will be automatically added to the top level of your table of contents! 
 
 ### Home Page
 
-When a vistor first browses to the site, its "Home" page will be displayed. This page is created from a Markdown file named `index.md` (named like a default website page: `index.html`).
+When a visitor first browses to the site, its "home page" will be displayed. This page is created from a markdown file named `index.md` (named like a default website page: `index.html`).
 
 If this file does not exist in your `docs` folder, pyMkDocs will generate a simple placeholder for you. To revise the content of this page, simply edit, or replace, the `index.md` source.   
 
