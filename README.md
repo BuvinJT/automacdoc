@@ -4,7 +4,7 @@
 pyMkDocs is a command line driven utility used to generate documentation for Python projects. It extends the features of [MkDocs](https://mkdocs.org).
 
 ## What does pyMkDocs do?
-pyMkDocs parses Python source, writes [Markdown](https://en.wikipedia.org/wiki/Markdown) files to summarize and describe the code, and then leans on MkDocs to generate a full featured website from that content. MkDocs is an incredible tool in it's own right for easily creating websites. Until now, however, there has been no means to *auto generate* a MkDocs site from Python source!
+pyMkDocs parses Python source, writes [Markdown](https://en.wikipedia.org/wiki/Markdown) files to summarize and describe the code, and then leans on MkDocs to generate a full featured website from that content. MkDocs is an incredible tool in its own right for easily creating websites. Until now, however, there has been no means to *auto generate* a MkDocs site from Python source!
 
 ## How do I install pyMkDocs?
 
@@ -92,7 +92,7 @@ pymkdocs src . -r -c -s
 
 - `-c` specifies "code snippets" are to be included in the documentation.
 
-- `-s` specifies that, to end of the process, MkDocs should "serve" the site locally and load it into your default browser for review.
+- `-s` specifies that MkDocs should "serve" the site locally and load it into your default browser for review.
 
 ### Magic Docs Example
 
@@ -134,13 +134,15 @@ Example:
 pymkdocs pymkdocs ./pymkdocs_docs -s
 ~~~
 
+> Note: the `-m` switch was omitted here because "magic mode" is, in fact, the default.
+
 ### Library Maintenance SOP
 
 If you are maintaining a Python library, we recommend standardizing the following development procedures to implement auto documentation.
 
 1. Create your own Python library.  
 
-2. Start using pymkdocs throughout the development process. Ideally, include doc strings and "magic comments" in your source (see below).
+2. Start using pyMkDocs throughout the development process. Ideally, include "docstrings" and "magic comments" in your source (see below).
 
 3. Whenever you test your code changes locally, run a script such as the following to reinstall the library in your testing environment, and simultaneously regenerate the documentation within the project's directory:
 
