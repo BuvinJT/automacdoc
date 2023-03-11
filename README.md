@@ -1,31 +1,24 @@
 # pyMkDocs Utility
 
 ## What is pyMkDocs?
-pyMkDocs is a command line driven utility used to generate documentation for Python projects.
-It extends the features of [MkDocs](https://mkdocs.org).
-
-This project was built from a predecessor found at: https://github.com/AlexandreKempf/automacdoc
+pyMkDocs is a command line driven utility used to generate documentation for Python projects. It extends the features of [MkDocs](https://mkdocs.org).
 
 ## What does pyMkDocs do?
-pyMkDocs analyzes Python source code, produces Markdown files for [MkDocs](https://mkdocs.org), and leans on that to generate a website. MkDocs has been available for many years to create websites from markdown, but until now there has been no means to *auto generate* a MkDocs site from Python source!
+pyMkDocs parses Python source, writes [Markdown](https://en.wikipedia.org/wiki/Markdown) files to summarize and describe the code, and then leans on MkDocs to generate a full featured website from that content. MkDocs is an incredible tool in it's own right for easily creating websites. Until now, however, there has been no means to *auto generate* a MkDocs site from Python source!
 
 ## How do I install pyMkDocs?
 
 `pip install pymkdocs`
 
-> Note: It is not necessary to install MkDocs first. All dependencies are installed automatically.
+> Note: It is not necessary to install MkDocs in a separate step. All dependencies are gathered automatically.
 
 ## How do I use pyMkDocs?
 
-Once you have installed pyMkDocs, it will become available to you as a command line utility (found from within any directory via your "system path").
+Once you have installed it, `pymkdocs` will be available to run from a terminal (or script) without the need to specify a full path to it.
 
-The tool analyzes your Python source and generates markdown files from them. It then employs MkDocs to produce html based documentation from the markdown. Specifically, the pyMkDocs process creates:
+> Note: the path resolution works by virtue of your Python "Scripts" directory being found on your system path, which is part of the default configuration for Python.
 
-  - a `mkdocs.yml` file, which is a configuration file for MkDocs
-  - a `docs` folder, containing the markdown 
-  - a `site` folder, containing the static web site content
-
-### Command line specs
+**Command Line Interface**
 
 ```
 | pyMkDocs |
@@ -37,103 +30,15 @@ Usage: pymkdocs source destination [-m/-r] [-c] [-s]
 -s: serve test site
 ```
 
-### Basic Scenario
+**Content Produced**
 
-> This is the recommended way to try pyMkDocs for the first time! The below commands may be executed exactly as shown if you have fully cloned / downloaded this git repo to acquire the "example" project.
+In summary, a pyMkDocs process creates the following:
 
-The following procedure may be used to document the source of a Python project in a basic, straight forward, manner.  
+  - a `mkdocs.yml` file, which is a configuration file for MkDocs
+  - a `docs` folder, containing the markdown 
+  - a `site` folder, containing the static web site content
 
-Typically, you would use the "raw" parsing method shown here for internal documentation, especially for executable programs. The docs produced this way may prove valuable for program design visualization and source navigation.
-
-1. Change to the directory of a Python project of your choice. 
-
-Example:
-~~~ 
-cd pymkdocs/example
-~~~
-
-2. Run pyMkDocs against the source code in "raw mode".
-
-Example:
-~~~ 
-pymkdocs src . -r -c -s
-~~~
-
-**Breaking Down the Parameters**
-
-- `src` is a sub directory of the example project, which contains a collection Python source files and nested directories.
-
-- `.` indicates the output of the process should be written to the current directory, i.e. the root of the example project in this context.
-
-- `-r` specifies "raw mode".
-
-- `-c` specifies "code snippets" are to be included in the documentation.
-
-- `-s` specifies that MkDocs should "serve" the site locally and load it into your default browser for review.
-
-### Magic Docs Scenario
-
-The following procedure may be used to document the source of a Python project in a more "sophisticated" manner.  
-
-Typically, you would use this method to create documentation for the clients of a library. See below for more details on "Magic Mode".
-
-1. Change to the directory of a Python project of your choice. 
-
-Example:
-~~~ 
-cd pymkdocs/example
-~~~
-
-2. Run pyMkDocs against that source in "magic mode".  
-
-Example:
-~~~ 
-pymkdocs src . -m -s
-~~~
-
-### Third Party Library Scenario
-
-The following procedure may used to document the source of a third party library. This can be extremely useful when applied against a code base which has little to no documentation of its own! 
-
-1. Pip install a library of your choice.  
-
-Example:
-~~~ 
-pip install pymkdocs
-~~~
-
-2. Run pyMkDocs against that library in "magic mode", providing the **import** name as the "source" (rather than a directory path). 
-
-Example: 
-~~~ 
-pymkdocs pymkdocs ./pymkdocs_docs -s
-~~~
-
-### Library Maintenance Scenario
-
-If you are maintaining a Python library, we recommend standardizing the following development procedures to implement auto documentation.
-
-1. Create your own Python library.  
-
-2. Start using pymkdocs throughout the development process. Ideally, include doc strings and "magic comments" in your source (see below).
-
-3. Whenever you test your code changes locally, run a script such as the following to reinstall the library in your testing environment, and simultaneously regenerate the documentation within the project's directory:
-
-~~~
-cd my_library
-pip install .
-pymkdocs my_library .
-~~~
-
-> Note: you would add a `-s` switch at the end of the `pymkdocs` command, to view the updated documentation each time the script is run.
-
-4. All modifications to the library's interface will then be auto documented! You can't forget to do it, or be forced into an additional manual task!
-  
-5. Commit your code changes in parallel with the doc changes. The docs in your git history will then always align with the source! 
-  
-## Content Produced 
-
-Here is a visual aide to help depict what you will be creating by using the utility. 
+Here is a visual aide to help depict the results. 
 
 BEFORE running pyMkDocs: Your project "core" may be comprised of a single source sub directory.
 
@@ -155,6 +60,102 @@ AFTER running pyMkDocs: You would have the following in that project root path:
 >          - index.html
 >          ...
 
+### Basic Use Case
+
+The following procedure may be used to document the source of a Python project in a basic, straightforward, manner.  
+
+> This is the recommended way to try pyMkDocs for the first time. The below commands may be executed *exactly* as shown if you clone the pyMkDocs git repo to acquire the "example" project.
+
+Typically, you would use the "raw" parsing method shown here for *internal* documentation, especially for *executable* programs. The docs produced this way may prove valuable for program design visualization and finding elements in your source.
+
+1. Change to the directory of a Python project of your choice. 
+
+Example:
+~~~ 
+cd pymkdocs/example
+~~~
+
+2. Run pyMkDocs against the source code in "raw mode".
+
+Example:
+~~~ 
+pymkdocs src . -r -c -s
+~~~
+
+**Break Down of the Example Arguments**
+
+- `src` is a sub directory of the example project, which contains a collection Python source files and nested directories.
+
+- `.` indicates the output of the process should be written to the current directory, i.e. the root of the example project in this context, since we previously navigated to that path.
+
+- `-r` specifies "raw mode".
+
+- `-c` specifies "code snippets" are to be included in the documentation.
+
+- `-s` specifies that, to end of the process, MkDocs should "serve" the site locally and load it into your default browser for review.
+
+### Magic Docs Example
+
+The following procedure may be used to document the source of a Python project in a more "sophisticated" manner.  
+
+Typically, you would use this method to create documentation for the *clients* of a *library*. See below for more details on "Magic Mode".
+
+1. Change to the directory of a Python project of your choice. 
+
+Example:
+~~~ 
+cd pymkdocs/example
+~~~
+
+2. Run pyMkDocs against that source in "magic mode".  
+
+Example:
+~~~ 
+pymkdocs src . -m -s
+~~~
+
+> You should see a variety of similarities, and differences, compared to using "raw mode" against the same source.
+
+### Third Party Library Scenario
+
+The following procedure may used to document the source of a *third party library*. This can be extremely useful when applied against a code base which has little to no documentation of its own! 
+
+1. Pip install a library of your choice.  
+
+Example:
+~~~ 
+pip install pymkdocs
+~~~
+
+2. Run pyMkDocs against that library in "magic mode", providing the **import** name as the "source" (rather than a directory path). 
+
+Example: 
+~~~ 
+pymkdocs pymkdocs ./pymkdocs_docs -s
+~~~
+
+### Library Maintenance SOP
+
+If you are maintaining a Python library, we recommend standardizing the following development procedures to implement auto documentation.
+
+1. Create your own Python library.  
+
+2. Start using pymkdocs throughout the development process. Ideally, include doc strings and "magic comments" in your source (see below).
+
+3. Whenever you test your code changes locally, run a script such as the following to reinstall the library in your testing environment, and simultaneously regenerate the documentation within the project's directory:
+
+~~~
+cd my_library
+pip install .
+pymkdocs my_library .
+~~~
+
+> Note: you would add a `-s` switch at the end of the `pymkdocs` command, to view the updated documentation each time the script is run.
+
+4. All modifications to the library's interface will then be auto documented!
+  
+5. Commit your code changes in parallel with the doc changes. The docs in your git history will then always align with the source! 
+  
 ## Content Merging 
 
 pyMkDocs is not limited to only generating a site from scratch. Instead, it can be dynamically *integrated* with your custom content.  Once you know how, it's easy to add your own pages, to add more MkDocs [extensions](https://www.mkdocs.org/user-guide/configuration/#markdown_extensions), to add [plugins](https://www.mkdocs.org/user-guide/configuration/#plugins), modify the site [theme](https://www.mkdocs.org/user-guide/configuration/#theme) and more!  
@@ -321,29 +322,9 @@ is_virtual_code_cool = True
 
 Use this to inject "virtual code", without actually modifying your functional source, for the purpose of having the documentation generator treat it as though it were truly there. This provides a means to create documentation in a completely open ended manner, which is is not tightly bound to literal source.   
 
-#### Virtual Value
+## Function Docstrings
 
-```py3
-my_global_number=5
-""" This number may differ between run contexts.
-docs : virtual_value=500
-"""
-````
-
-Use this in an attribute/variable docstring to override the default value which would otherwise appear in the documentation. 
-
-#### Conditional Value
-
-```py3
-MY_CONSTANT="brilliance"
-""" Here is a docstring for my constant.
-docs : conditional_value
-"""
-````
-
-Use this in an attribute/variable docstring to modify the style of the default value in the documentation, so as to indicate it is "conditional". 
-
-## Recommended Function Docstring
+The following is a recommended boilerplate for writing function docstrings:
 
 **Code:**
 
@@ -375,8 +356,32 @@ is because a consensus could not be arrived upon as to what the cleanest means w
 
 That said, it has been suggested that *unofficial* documentation generators (such as this) may still wish to adhere to the standards proposed in the *rejected* [PEP-224](https://www.python.org/dev/peps/pep-0224/) or [PEP-258](https://www.python.org/dev/peps/pep-0258/#attribute-docstrings) regarding attributes. So, pyMkDocs recognizes those conventions and processes such comments when generating documentation.
 
+In addition to these standards, the following "magic" docstring options have also been made available:
+
+### Virtual Value
+
+```py3
+my_global_number=5
+""" This number may differ between run contexts.
+docs : virtual_value=500
+"""
+````
+
+Use this in an attribute/variable docstring to override the default value which would otherwise appear in the documentation. 
+
+### Conditional Value
+
+```py3
+MY_CONSTANT="brilliance"
+""" Here is a docstring for my constant.
+docs : conditional_value
+"""
+````
+
+Use this in an attribute/variable docstring to modify the style of the default value in the documentation, so as to indicate it is "conditional". 
+
 ## Additional Features
-Check out the example source. There, you will find tons of fancy elements you can now instantly add to your documentation, leveraging the power of many [MkDocs](https://mkdocs.org) extensions!
+Please review the example source. There you will find many more fancy markdown elements you can instantly add to your documentation, leveraging the power of various [MkDocs](https://mkdocs.org) extensions!
 
 ## What other options exist for auto documentation?
 
