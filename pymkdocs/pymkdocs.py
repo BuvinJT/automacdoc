@@ -47,7 +47,7 @@ MAGIC_MODDOC_COMMENT        = '# docs : __doc__'
 
 MAGIC_NULL                  = 'null'
 MAGIC_TAB                   = '<tab>'
-MAGIC_SPACE                 = '<spc>'
+MAGIC_SPACE                 = '<sp>'
 
 TXT,SRC=range(2)
 
@@ -890,7 +890,6 @@ def create_att(name: str, obj, val, doc, clas, options: dict):
     att["value"] = __markdown_safe(val)    
     att["doc"]   = __markdown_safe(doc or "")    
     att["class"] = clas    
-    print( "doc", att["doc"]  )
     return att
 
 def rm_docstring_from_source( source:str ):

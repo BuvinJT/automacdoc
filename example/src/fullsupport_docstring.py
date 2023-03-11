@@ -17,20 +17,6 @@ def fullsupport(x: float, y: float = 3):
 
     #### Heading 4 <small>with secondary text</small>
 
-    Magic Tab: **&lt;tab&gt;** Hard markdown tab / indent
-    
-    Magic Space: **&lt;spc&gt;** Hard markdown space
-
-    <tab>here is an implicit "code/command block" via Magic Tab
-    <tab>a subsequent line magic tabbed in...
-
-    ```
-    Inside a multi-line Code Block {
-    <spc>Leading Magic Space 
-    <tab>Leading Magic Tab 
-    }
-    ```
-    
     !!! note "note block"
         Add a personnal remark here
 
@@ -67,17 +53,35 @@ def fullsupport(x: float, y: float = 3):
     !!! example "example block"
         Illustrate your point with an example
 
+    ??? note "note block with display"
+        You can also add note on a block that can be hidden
+
+    ???+ note "open by default"
+        And it can be open by default
+
     Of course there is emoji :heart:
 
     and code inline with syntax highlights: `#!py3 import numpy as np`
 
     Link to other sites (http://www.google.com) or other part of the doc [function test](zoomext.md#test)
 
-    ??? note "note block with display"
-        You can also add note on a block that can be hidden
+    "Magic Space": **&lt;sp&gt;** Hard space for destination markdown source
 
-    ???+ note "open by default"
-        And it can be open by default
+    "Magic Tab": **&lt;tab&gt;** Hard tab / indent for destination markdown source   
+
+    <tab>here is an implicit "code/command/quote block" via Magic Tab
+    <tab>an adjacent line magic tabbed in...
+
+    A normal text section...
+
+    <tab>another line magic tabbed in...    
+    
+    ```
+    Inside a multi-line Code Block {
+    <sp>Leading Magic Space 
+    <tab>Leading Magic Tab 
+    }
+    ```        
     """
     #return np.max(x, y)
     return x
