@@ -1447,7 +1447,9 @@ def __markdown_safe(obj):
     s = str(obj)
     s = set_indent( s, 0 )
     s = s.replace(MAGIC_SPACE,SPACE).replace(MAGIC_TAB,TAB)
-    s = s.replace('<','').replace('>','')
+    # double edge sword here! We'd like to remove <> that aren't
+    # intended to be markdown/up elements / tags, and leave those which are.
+    #s = s.replace('<','').replace('>','')
     return s 
 
 __warn_msg="[-]Warning: {0}"
