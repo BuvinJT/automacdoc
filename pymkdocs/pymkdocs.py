@@ -372,7 +372,7 @@ def write_module(
     except ModuleNotFoundError as error:
         raise ModuleNotFoundError(str(error) + " in " + module_import)
 
-    clas  = [create_class(package_name, n, o, options)
+    clas  = [create_class(module, package_name, n, o, options)
             for n, o in inspect.getmembers(module, inspect.isclass)]
     funs  = [create_fun(n, o, options)
             for n, o in inspect.getmembers(module, inspect.isfunction)]
@@ -677,9 +677,9 @@ def get_toc_lines_from_file_path(mdfile_name,is_top=False):
             lines += tab * (i + 1) + "- " + mdfile_name + NEW_LINE
     return lines
 
-def create_class(package_name, name: str, obj, options: dict):
+def create_class(module, package_name, name: str, obj, options: dict):
     """
-    Generate a dictionnary that contains the information about a class
+    Generate a dictionary that contains the information about a class
 
     **Parameters**
     > **name:** `str` -- name of the class as returned by `inspect.getmembers`
@@ -691,7 +691,7 @@ def create_class(package_name, name: str, obj, options: dict):
     >  - *name*, *obj* -- the class name and object as returned by `inspect.getmembers`
     >  - *module* -- name of the module
     >  - *path* -- path of the module file
-    >  - *base* -- base class(es)
+    >  - *base* -- base class(es) (top down order)
     >  - *doc* -- docstring of the class
     >  - *source* -- source code of the class
     >  - *is_init* -- class definition includes __init__
@@ -703,7 +703,7 @@ def create_class(package_name, name: str, obj, options: dict):
     >  - *attributes* -- list of attributes that are in the class (formatted as dict)
     """
     clas = {}
-    
+            
     clas["name"]   = name
     clas["obj"]    = obj
     
@@ -713,15 +713,11 @@ def create_class(package_name, name: str, obj, options: dict):
     except: clas["path"]   = None   
     try:    clas["doc"]    = __markdown_safe( inspect.getdoc(obj) or "" )
     except: clas["doc"]    = ""    
-    try:    clas["source"] = prep_source(inspect.getsource(obj))
+    try:    clas["source"] = __prep_source(inspect.getsource(obj))
     except: clas["source"] = ""
     try:    clas["args"]   = inspect.signature(obj)
     except: clas["args"]   = ""
     
-    root_name = name.split(".")[-1] 
-    clas["base"] = [ c.__name__ for c in reversed(inspect.getmro(obj)) 
-                     if c.__name__ not in [root_name,'object'] ] 
-        
     clas["is_init"]             = False
     clas["init_doc"]            = ""
     clas["init_source"]         = ""        
@@ -729,7 +725,7 @@ def create_class(package_name, name: str, obj, options: dict):
     clas["class_methods"]       = []
     clas["instance_methods"]    = []    
     clas["instance_attributes"] = []        
-    
+           
     methods = []
     all_method_names = []
     for n, o in inspect.getmembers(obj, inspect.isfunction):
@@ -757,7 +753,7 @@ def create_class(package_name, name: str, obj, options: dict):
         all_method_names.append(n)
         if n=='__init__':
             clas["init_doc"] = inspect.getdoc(o)
-            clas["init_source"] = prep_source(inspect.getsource(o))
+            clas["init_source"] = __prep_source(inspect.getsource(o))
             (args, 
              varargs, varkw, defaults, kwonlyargs, kwonlydefaults, # @UnusedVariable  
              annotations) = inspect.getfullargspec(o)
@@ -793,7 +789,7 @@ def create_class(package_name, name: str, obj, options: dict):
             if default_inst: 
                 v = getattr(default_inst, n, None)
             d = None # updated later via ast parsing
-            c =(create_class(package_name, "%s.%s" % (name,n), o, options) 
+            c =(create_class(module, package_name, "%s.%s" % (name,n), o, options) 
                 if inspect.isclass(o) else None )
             a = create_att(n, o, v, d, c, options)
             if a: clas["class_attributes"].append(a)
@@ -856,6 +852,34 @@ def create_class(package_name, name: str, obj, options: dict):
             mod_source = make_virtual_code_real( f.read() )            
         ClassVisitor().generic_visit(ast.parse(mod_source))
     else: print("No path available for class", clas["name"] )     
+    
+    def __override_attributes( clas_attribs, derived_class_attribs ):
+        for idx, inst_attrib in enumerate(clas_attribs):            
+            for der_idx, der_attrib in reversed(list(enumerate(
+                derived_class_attribs))):                 
+                if der_attrib["name"] == inst_attrib["name"] : 
+                    clas_attribs.pop( idx )    
+                    clas_attribs.insert( idx, der_attrib )
+                    derived_class_attribs.pop( der_idx )
+        for der_attrib in derived_class_attribs:
+            clas_attribs.append( der_attrib )
+        return clas_attribs    
+        
+    root_name = name.split(".")[-1] 
+    base_classes = [ c for c in reversed( inspect.getmro(obj) ) 
+                     if c.__name__ not in [root_name,'object'] ]     
+    clas["base"] = [ c.__name__ for c in base_classes ]
+    if len(base_classes) > 0 :            
+        clas_attribs_sv = clas["instance_attributes"].copy()
+        clas["instance_attributes"] = []
+        for class_name in clas["base"]:
+            derived_class = __get_import_class( 
+                module, package_name, class_name, options )
+            clas["instance_attributes"] = __override_attributes( 
+                clas["instance_attributes"], derived_class["instance_attributes"])
+        clas["instance_attributes"] = __override_attributes( 
+            clas["instance_attributes"], clas_attribs_sv)
+                
     return clas
 
 def create_fun(name: str, obj, options: dict):
@@ -887,7 +911,7 @@ def create_fun(name: str, obj, options: dict):
     fun["module"] = inspect.getmodule(obj).__name__
     fun["path"] = inspect.getmodule(obj).__file__
     fun["doc"] = __markdown_safe( inspect.getdoc(obj) or "" )
-    fun["source"] = prep_source(inspect.getsource(obj))
+    fun["source"] = __prep_source(inspect.getsource(obj))
     fun["args"] = inspect.signature(obj)
     return fun
 
@@ -928,18 +952,6 @@ def create_att(name: str, obj, val, doc, clas, options: dict):
     att["doc"]   = __markdown_safe(doc or "")    
     att["class"] = clas    
     return att
-
-def prep_source( source:str ):
-    """
-    Prepare source code for analysis or raw display.
-
-    **Parameters**
-    > **source:** `str` -- Source code of a function or a class
-
-    **Returns**
-    > `str` -- Source code post prep.
-    """    
-    return rm_docstring_from_source( make_virtual_code_real( source ) )
 
 def make_virtual_code_real( source:str ):
     """
@@ -1104,7 +1116,7 @@ def __get_import_func_names( module ):
 
 def __get_import_class( module, package_name, classname: str, options: dict ): 
     for n, o in inspect.getmembers(module, inspect.isclass):
-        if n==classname: return create_class(package_name, n, o, options)
+        if n==classname: return create_class(module,package_name, n, o, options)
 
 def __get_import_func( module, funcname: str, options: dict ): 
     for n, o in inspect.getmembers(module, inspect.isfunction):
@@ -1394,7 +1406,7 @@ def __get_import_vars( module ):
 def __write_mod( md_file, module_path: str, package_name: str, class_name: str, options ):
     try:
         module = __get_import_by_path( module_path )
-        clas  = [create_class(package_name, n, o, options) # 
+        clas  = [create_class(module, package_name, n, o, options) # 
                 for n, o in inspect.getmembers(module, inspect.isclass)]
         funs  = [create_fun(n, o, options)
                 for n, o in inspect.getmembers(module, inspect.isfunction)]                                        
@@ -1519,6 +1531,9 @@ def __docs_dir(yaml_path: str):
                 if ln.strip().startswith(docs_dir_prefix):
                     docs_dir = ln.replace(docs_dir_prefix,'').strip()                     
     return docs_dir
+
+def __prep_source( source:str ):
+    return rm_docstring_from_source( make_virtual_code_real( source ) )
                     
 # TODO: define this function correctly
 def __markdown_safe(obj): 

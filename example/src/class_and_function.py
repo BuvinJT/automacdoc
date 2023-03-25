@@ -45,7 +45,9 @@ class _Animal:
     
     def __init__(self):
         _Animal._instance_counter += 1
-        
+        self.is_vertebrate = None
+        """Default `None` indicates "unknown"."""
+                
     #@abstractmethod
     def _live( self ): """ABSTRACT"""                
 
@@ -65,6 +67,9 @@ class Fish( _Animal ):
         """
         self.name=name
         """The name helps us to identify the particular animal."""
+        
+        self.is_vertebrate = True
+        """A fish is a vertebrate."""
  
     def breathe_h2o( self ):
         """This is a big part of what a fish does."""
