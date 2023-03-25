@@ -404,7 +404,7 @@ def write_class(md_file, clas, options):
     > **options:** `dict` -- extended options
     
     """
-    md_file.writelines(class_name_md(clas["name"]))
+    md_file.writelines(__escape_magic_name(class_name_md(clas["name"])))
     md_file.writelines(doc_md(clas["doc"]))
 
     if len(clas["base"]) > 0:
@@ -469,7 +469,7 @@ def write_function(md_file, fun, options):
  
     """
     if fun is None: return
-    md_file.writelines(function_name_md(fun["name"], fun["args"]))
+    md_file.writelines(function_name_md(__escape_magic_name(fun["name"]), fun["args"]))
     md_file.writelines(doc_md(fun["doc"]))    
     if options.get("is_source_shown",False): 
         md_file.writelines(source_md(fun["source"]))
@@ -487,9 +487,9 @@ def write_method(md_file, method, clas, is_static, options):
     """
     if method is None: return
     md_file.writelines(
-        static_method_name_md(clas["name"], method["name"], method["args"])
+        static_method_name_md(__escape_magic_name(clas["name"]), __escape_magic_name( method["name"] ), method["args"])
         if is_static else
-        object_method_name_md(method["name"], method["args"])
+        object_method_name_md(__escape_magic_name(method["name"]), method["args"])
     )
     md_file.writelines(doc_md(method["doc"]))
     if options.get("is_source_shown",False):
@@ -522,9 +522,9 @@ def write_variable(md_file, var, options):
     value = magic_value if magic_value else var["value"]
     
     md_file.writelines(   
-        var_cond_val_md(var["name"],var["type"],value)
+        var_cond_val_md(__escape_magic_name(var["name"]),var["type"],value)
         if is_magic_cond_val else  
-        var_md(var["name"],var["type"],value) 
+        var_md(__escape_magic_name(var["name"]),var["type"],value) 
     )
     md_file.writelines(doc_md(doc))
 
@@ -540,9 +540,9 @@ def write_attribute(md_file, att, is_static, options, clas=None):
     """
     if att is None: return
     md_file.writelines(
-        static_attribute_name_md(clas["name"],att["name"],att["type"],att["value"])
+        static_attribute_name_md(__escape_magic_name(clas["name"]),__escape_magic_name(att["name"]),att["type"],att["value"])
         if is_static else
-        object_attribute_name_md(att["name"],att["type"],att["value"])
+        object_attribute_name_md(__escape_magic_name(att["name"]),att["type"],att["value"])
     ) 
     md_file.writelines(doc_md(att["doc"]))
 
@@ -677,12 +677,17 @@ def create_class(package_name, name: str, obj, options: dict):
     clas["name"]   = name
     clas["obj"]    = obj
     
-    clas["module"] = inspect.getmodule(obj).__name__
-    clas["path"]   = inspect.getmodule(obj).__file__    
-    clas["doc"]    = __markdown_safe( inspect.getdoc(obj) or "" )    
-    clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
-    clas["args"]   = inspect.signature(obj)
-
+    try:    clas["module"] = inspect.getmodule(obj).__name__
+    except: clas["module"] = ""
+    try:    clas["path"]   = inspect.getmodule(obj).__file__
+    except: clas["path"]   = None   
+    try:    clas["doc"]    = __markdown_safe( inspect.getdoc(obj) or "" )
+    except: clas["doc"]    = ""    
+    try:    clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
+    except: clas["source"] = ""
+    try:    clas["args"]   = inspect.signature(obj)
+    except: clas["args"]   = ""
+    
     root_name = name.split(".")[-1] 
     clas["base"] = [ c.__name__ for c in reversed(inspect.getmro(obj)) 
                      if c.__name__ not in [root_name,'object'] ] 
@@ -815,9 +820,10 @@ def create_class(package_name, name: str, obj, options: dict):
                                 doc = set_indent( next_statement.value.s, 0 )                                
                             else: doc = None    
                             a = create_att(name, obj, obj, doc, None, options)
-                            if a: clas["instance_attributes"].append(a)                                
-    with open(clas["path"],'r') as f: mod_source = f.read()            
-    ClassVisitor().generic_visit(ast.parse(mod_source))
+                            if a: clas["instance_attributes"].append(a)
+    if clas["path"] :                                                             
+        with open(clas["path"],'r') as f: mod_source = f.read()            
+        ClassVisitor().generic_visit(ast.parse(mod_source))
                         
     return clas
 
@@ -1272,6 +1278,8 @@ def __get_import_dtls( file_content, file_path ):
         
     return [imp for imp in __yieldImport( file_content, file_path )]
 
+def __escape_magic_name( name: str ): return name.replace('__', '&#95;&#95;')
+    
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 
 def __is_private_name( name: str ): return name.startswith('__')

@@ -1,5 +1,7 @@
 #import numpy as np
 
+#from six import add_metaclass
+#from abc import ABCMeta, abstractmethod 
 
 def maxi(x: int, y: int = 5):
     """
@@ -36,10 +38,46 @@ def maxi2pourvoir(x, y):
     #return np.max(x, y)
     return x
 
-class Animal: pass
+#@add_metaclass(ABCMeta)
+class _Animal: 
+    """Protected base class"""
+    _instance_counter=0
+    
+    def __init__(self):
+        _Animal._instance_counter += 1
+        
+    #@abstractmethod
+    def _live( self ): """ABSTRACT"""                
 
-class Fish( Animal ): pass
+    #@abstractmethod
+    def _die( self ): """ABSTRACT"""                
 
+class Fish( _Animal ):
+    """An animal which lives under water..."""
+
+    def __init__(self, name:str="?"):
+        """Initialize a Fish
+
+        **Parameters**
+
+        > **name:** `str` -- Name of the Fish.
+
+        """
+        self.name=name
+        """The name helps us to identify the particular animal."""
+ 
+    def breathe_h2o( self ):
+        """This is a big part of what a fish does."""
+        print("I'm trying to breathe here!")    
+
+    def _live( self ): 
+        """Fish definition"""
+        self.breathe_h2o()                
+
+    def _die( self ):                 
+        """Fish definition"""
+        self.name=None                
+ 
 class Shark( Fish ):
     """
     A very cool fish!
@@ -103,9 +141,8 @@ class Shark( Fish ):
         > **name:** `str` -- Name of the Shark.
 
         """
-        self.name=name
-        """The name helps us to identify the particular animal."""
-        
+        Fish.__init__( self, name )
+            
         self._protected_name=name+'-pro'
         self.__private_name=name+'-pri'
         
