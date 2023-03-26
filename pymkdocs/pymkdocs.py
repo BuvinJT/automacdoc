@@ -713,7 +713,7 @@ def create_class(package_name, name: str, obj, options: dict):
     except: clas["path"]   = None   
     try:    clas["doc"]    = __markdown_safe( inspect.getdoc(obj) or "" )
     except: clas["doc"]    = ""    
-    try:    clas["source"] = rm_docstring_from_source(inspect.getsource(obj))
+    try:    clas["source"] = prep_source(inspect.getsource(obj))
     except: clas["source"] = ""
     try:    clas["args"]   = inspect.signature(obj)
     except: clas["args"]   = ""
@@ -757,7 +757,7 @@ def create_class(package_name, name: str, obj, options: dict):
         all_method_names.append(n)
         if n=='__init__':
             clas["init_doc"] = inspect.getdoc(o)
-            clas["init_source"] = rm_docstring_from_source(inspect.getsource(o))
+            clas["init_source"] = prep_source(inspect.getsource(o))
             (args, 
              varargs, varkw, defaults, kwonlyargs, kwonlydefaults, # @UnusedVariable  
              annotations) = inspect.getfullargspec(o)
@@ -852,9 +852,10 @@ def create_class(package_name, name: str, obj, options: dict):
                             a = create_att(name, obj, obj, doc, None, options)
                             if a: clas["instance_attributes"].append(a)
     if clas["path"] :                                                             
-        with open(clas["path"],'r') as f: mod_source = f.read()            
+        with open(clas["path"],'r') as f: 
+            mod_source = make_virtual_code_real( f.read() )            
         ClassVisitor().generic_visit(ast.parse(mod_source))
-                        
+    else: print("No path available for class", clas["name"] )     
     return clas
 
 def create_fun(name: str, obj, options: dict):
@@ -886,7 +887,7 @@ def create_fun(name: str, obj, options: dict):
     fun["module"] = inspect.getmodule(obj).__name__
     fun["path"] = inspect.getmodule(obj).__file__
     fun["doc"] = __markdown_safe( inspect.getdoc(obj) or "" )
-    fun["source"] = rm_docstring_from_source(inspect.getsource(obj))
+    fun["source"] = prep_source(inspect.getsource(obj))
     fun["args"] = inspect.signature(obj)
     return fun
 
@@ -928,6 +929,43 @@ def create_att(name: str, obj, val, doc, clas, options: dict):
     att["class"] = clas    
     return att
 
+def prep_source( source:str ):
+    """
+    Prepare source code for analysis or raw display.
+
+    **Parameters**
+    > **source:** `str` -- Source code of a function or a class
+
+    **Returns**
+    > `str` -- Source code post prep.
+    """    
+    return rm_docstring_from_source( make_virtual_code_real( source ) )
+
+def make_virtual_code_real( source:str ):
+    """
+    Convert all "virtual" code into "real" code.
+
+    **Parameters**
+    > **source:** `str` -- Source code of a function or a class
+
+    **Returns**
+    > `str` -- Source code with "virtual" code made real.
+    """
+    lines = source.split(NEW_LINE)
+    is_virtual_line=False            
+    source_lines=[]
+    for line in lines:
+        clean_line = line.strip()        
+        if clean_line.startswith( MAGIC_VIRTUAL_COMMENT_START ):
+            is_virtual_line=True
+            continue
+        if is_virtual_line and clean_line.startswith( 
+            MAGIC_VIRTUAL_COMMENT_END ):
+            is_virtual_line=False
+            continue                
+        source_lines.append(line)          
+    return NEW_LINE.join(source_lines)                     
+                                 
 def rm_docstring_from_source( source:str ):
     """
     Remove the docstring from the source code of a function or a class
