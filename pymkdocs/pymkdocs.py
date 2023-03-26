@@ -52,8 +52,8 @@ MAGIC_SPACE                 = '<sp>'
 TXT,SRC=range(2)
 
 class_name_md = (
-    "## **{0}**`#!py3 class` {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name
+    "## **{0}**`#!py3 class` {{ #{1} data-toc-label={0} }}\n\n".format
+)  # name, toc_name
 base_classes_hdr_md = (
     "\n**Base Classes:**\n\n".format    
 )    
@@ -68,27 +68,27 @@ init_hdr_md = (
     " - [`__init__`](#{0}-init)\n".format
 )  # name
 static_method_name_md = (
-    "### *{0}*.**{1}**`#!py3 {2}` {{ #{1} data-toc-label={1} }}\n\n".format
-)  # class, name, args
+    "### *{0}*.**{1}**`#!py3 {3}` {{ #{0}.{2} data-toc-label={1} }}\n\n".format
+)  # class, name, toc_name, args
 object_method_name_md = (
-    "### *obj*.**{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, args
+    "### *obj*.**{1}**`#!py3 {3}` {{ #{0}.{2} data-toc-label={1} }}\n\n".format
+)  # class, name, toc_name, args
 static_attribute_name_md = ( 
-    "### *{0}*.**{1}** *{2}* default: *{3}* {{ #{1} data-toc-label={1} }}\n\n".format
-)  # class, name, type, value
+    "### *{0}*.**{1}** *{3}* default: *{4}* {{ #{0}.{2} data-toc-label={1} }}\n\n".format
+)  # class, name, toc_name, type, value
 object_attribute_name_md = ( 
-    "### *obj*.**{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, type, value
+    "### *obj*.**{1}** *{3}* default: *{4}* {{ #{0}.{2} data-toc-label={1} }}\n\n".format
+)  # class, name, toc_name, type, value
 
 init_md = (
     "### **{0}**`#!py3 {1}` {{ #{0}-init data-toc-label=\"&lowbar;&lowbar;init&lowbar;&lowbar;\" }}\n\n".format
-)  # name, args
+)  # name, toc_name, args
 var_md = ( 
-    "### **{0}** *{1}* default: *{2}* {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, type, default
+    "### **{0}** *{2}* default: *{3}* {{ #{1} data-toc-label={0} }}\n\n".format
+)  # name, toc_name, type, default
 var_cond_val_md = ( 
-    "### **{0}** *{1}* default: <span style=""color:gray"">&lt;{2}&gt;</span> {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, type, default
+    "### **{0}** *{2}* default: <span style=""color:gray"">&lt;{3}&gt;</span> {{ #{1} data-toc-label={0} }}\n\n".format
+)  # name, toc_name, type, default
 all_vars_md= (
     "## **Constants and Globals** {{ #Constants-and-Globals data-toc-label=\"Constants and Globals\" }}\n\n".format
 )  
@@ -96,8 +96,8 @@ all_funcs_md = (
     "## **Functions** {{ #Functions data-toc-label=Functions }}\n\n".format
 )  # name
 function_name_md = (
-    "### **{0}**`#!py3 {1}` {{ #{0} data-toc-label={0} }}\n\n".format
-)  # name, args
+    "### **{0}**`#!py3 {2}` {{ #{1} data-toc-label={0} }}\n\n".format
+)  # name, toc_name, args
 doc_md = "{}\n".format  # doc
 source_md = (
     '\n\n??? info "Source Code" \n\t```py3 linenums="1 1 2" \n{}\n\t```\n'.
@@ -404,7 +404,9 @@ def write_class(md_file, clas, options):
     > **options:** `dict` -- extended options
     
     """
-    md_file.writelines(__escape_magic_name(class_name_md(clas["name"])))
+    md_file.writelines(class_name_md(
+        __html_escape_magic_name( clas["name"] ),
+        __toc_escape_magic_name(  clas["name"] ) ))
     md_file.writelines(doc_md(clas["doc"]))
 
     if len(clas["base"]) > 0:
@@ -417,7 +419,7 @@ def write_class(md_file, clas, options):
 
     if clas["is_init"]:        
         md_file.writelines( magic_methods_hdr_md() )
-        md_file.writelines(init_hdr_md(clas["name"]))        
+        md_file.writelines(init_hdr_md(__toc_escape_magic_name(clas["name"])))        
 
     if len(clas["instance_methods"]) > 0 or clas["is_init"]:
         md_file.writelines("\n**Instance Methods:** \n\n")
@@ -440,7 +442,10 @@ def write_class(md_file, clas, options):
     md_file.writelines(NEW_LINE)
 
     if clas["is_init"]:         
-        md_file.writelines(init_md(clas["name"],clas["args"]))            
+        md_file.writelines(init_md(
+            __html_escape_magic_name( clas["name"] ),
+            __toc_escape_magic_name(  clas["name"] ),
+            clas["args"]))            
         md_file.writelines(doc_md(clas["init_doc"]))
         if options.get("is_source_shown",False): 
             md_file.writelines(source_md(clas["init_source"]))
@@ -469,7 +474,10 @@ def write_function(md_file, fun, options):
  
     """
     if fun is None: return
-    md_file.writelines(function_name_md(__escape_magic_name(fun["name"]), fun["args"]))
+    md_file.writelines(function_name_md(
+        __html_escape_magic_name( fun["name"] ), 
+        __toc_escape_magic_name(  fun["name"] ),
+        fun["args"]))
     md_file.writelines(doc_md(fun["doc"]))    
     if options.get("is_source_shown",False): 
         md_file.writelines(source_md(fun["source"]))
@@ -487,9 +495,17 @@ def write_method(md_file, method, clas, is_static, options):
     """
     if method is None: return
     md_file.writelines(
-        static_method_name_md(__escape_magic_name(clas["name"]), __escape_magic_name( method["name"] ), method["args"])
+        static_method_name_md( 
+            __html_escape_magic_name(   clas["name"] ), 
+            __html_escape_magic_name( method["name"] ),
+            __toc_escape_magic_name(  method["name"] ),
+            method["args"] )
         if is_static else
-        object_method_name_md(__escape_magic_name(method["name"]), method["args"])
+        object_method_name_md( 
+            __html_escape_magic_name(   clas["name"] ),            
+            __html_escape_magic_name( method["name"] ), 
+            __toc_escape_magic_name(  method["name"] ),
+            method["args"] )
     )
     md_file.writelines(doc_md(method["doc"]))
     if options.get("is_source_shown",False):
@@ -522,9 +538,15 @@ def write_variable(md_file, var, options):
     value = magic_value if magic_value else var["value"]
     
     md_file.writelines(   
-        var_cond_val_md(__escape_magic_name(var["name"]),var["type"],value)
+        var_cond_val_md(
+            __html_escape_magic_name(var["name"]),
+            __toc_escape_magic_name( var["name"]),
+            var["type"], value )
         if is_magic_cond_val else  
-        var_md(__escape_magic_name(var["name"]),var["type"],value) 
+        var_md(
+            __html_escape_magic_name(var["name"]),
+            __toc_escape_magic_name( var["name"]),
+            var["type"], value ) 
     )
     md_file.writelines(doc_md(doc))
 
@@ -540,9 +562,17 @@ def write_attribute(md_file, att, is_static, options, clas=None):
     """
     if att is None: return
     md_file.writelines(
-        static_attribute_name_md(__escape_magic_name(clas["name"]),__escape_magic_name(att["name"]),att["type"],att["value"])
+        static_attribute_name_md(
+            __html_escape_magic_name( clas["name"] ),
+            __html_escape_magic_name(  att["name"] ),
+            __toc_escape_magic_name(   att["name"] ),
+            att["type"], att["value"] )
         if is_static else
-        object_attribute_name_md(__escape_magic_name(att["name"]),att["type"],att["value"])
+        object_attribute_name_md(
+            __html_escape_magic_name( clas["name"] ),
+            __html_escape_magic_name(  att["name"] ),
+            __toc_escape_magic_name(   att["name"] ),
+            att["type"], att["value"] )
     ) 
     md_file.writelines(doc_md(att["doc"]))
 
@@ -1278,7 +1308,9 @@ def __get_import_dtls( file_content, file_path ):
         
     return [imp for imp in __yieldImport( file_content, file_path )]
 
-def __escape_magic_name( name: str ): return name.replace('__', '&#95;&#95;')
+def __toc_escape_magic_name( name: str ): return name.replace('__', '95')
+
+def __html_escape_magic_name( name: str ): return name.replace('__', '&#95;&#95;')
     
 def __is_magic_name( name: str ): return name.startswith('__') and name.endswith('__')
 
