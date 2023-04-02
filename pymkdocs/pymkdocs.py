@@ -64,6 +64,7 @@ base_class_sep = ', '
 magic_methods_hdr_md = (
     "\n**Magic Methods:**\n\n".format    
 )    
+summary_level_link_md = " - [`{1}`](#{0}.{2})\n".format # class, name, toc_name
 init_hdr_md = (
     " - [`__init__`](#{0}-init)\n".format
 )  # name
@@ -81,7 +82,7 @@ object_attribute_name_md = (
 )  # class, name, toc_name, type, value
 
 init_md = (
-    "### **{0}**`#!py3 {1}` {{ #{0}-init data-toc-label=\"&lowbar;&lowbar;init&lowbar;&lowbar;\" }}\n\n".format
+    "### **{0}**`#!py3 {2}` {{ #{0}-init data-toc-label=\"&lowbar;&lowbar;init&lowbar;&lowbar;\" }}\n\n".format
 )  # name, toc_name, args
 var_md = ( 
     "### **{0}** *{2}* default: *{3}* {{ #{1} data-toc-label={0} }}\n\n".format
@@ -424,20 +425,30 @@ def write_class(md_file, clas, options):
     if len(clas["instance_methods"]) > 0 or clas["is_init"]:
         md_file.writelines("\n**Instance Methods:** \n\n")
         for m in clas["instance_methods"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
+            md_file.writelines( summary_level_link_md(
+                __toc_escape_magic_name(clas["name"]),
+                m["name"], __toc_escape_magic_name(m["name"]) ))
+            
     if len(clas["instance_attributes"]) > 0:
         md_file.writelines("\n**Instance Attributes:** \n\n")
         for m in clas["instance_attributes"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
+            md_file.writelines( summary_level_link_md(
+                __toc_escape_magic_name(clas["name"]),
+                m["name"], __toc_escape_magic_name(m["name"]) ))
 
     if len(clas["class_methods"]) > 0:
         md_file.writelines("\n**Class/Static Methods:** \n\n")
         for f in clas["class_methods"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(f["name"]))
+            md_file.writelines( summary_level_link_md(
+                __toc_escape_magic_name(clas["name"]),
+                m["name"], __toc_escape_magic_name(m["name"]) ))
+
     if len(clas["class_attributes"]) > 0:
         md_file.writelines("\n**Class/Static Attributes:** \n\n")
         for m in clas["class_attributes"]:
-            md_file.writelines(" - [`{0}`](#{0})\n".format(m["name"]))
+            md_file.writelines( summary_level_link_md(
+                __toc_escape_magic_name(clas["name"]),
+                m["name"], __toc_escape_magic_name(m["name"]) ))
 
     md_file.writelines(NEW_LINE)
 
